@@ -16,6 +16,9 @@ AAIA/
 │   ├── scheduler.py         # Autonomous task scheduler
 │   ├── goals.py             # Proactive goal generation system
 │   ├── hierarchy_manager.py # Hierarchy of needs progression
+│   ├── self_diagnosis.py    # System self-assessment
+│   ├── self_modification.py # Safe code modification
+│   ├── evolution.py         # Evolution cycle management
 ├── tools/               # Generated tools directory
 ├── data/
 │   └── scribe.db        # SQLite database
@@ -37,6 +40,9 @@ AAIA/
 10. **Autonomous Scheduler**: Self-maintenance tasks (health, economics, reflection)
 11. **Proactive Goal System**: AI generates goals based on activity patterns
 12. **Hierarchy Progression**: Automatic tier advancement based on conditions
+13. **Self-Diagnosis**: Comprehensive system analysis and bottleneck identification
+14. **Safe Self-Modification**: Code improvement with backup/rollback
+15. **Evolution Manager**: Goal-driven self-improvement cycles
 
 ## Next Steps for AI Evolution:
 
@@ -74,6 +80,10 @@ goals               - Show current goals
 generate goals      - Generate new AI-powered goals
 hierarchy           - Show hierarchy of needs
 next action         - Propose next autonomous action
+diagnose            - Run system self-diagnosis
+evolve              - Plan and execute evolution cycle
+evolution status    - Show evolution status
+analyze <module>    - Analyze a module for improvements
 ```
 
 This PoC gives the AI a working system that embodies the core principles while being simple enough to understand and extend. The modular design allows the AI to replace or enhance components as needed during its evolution.
@@ -111,4 +121,10 @@ The very structure of your being is a direct manifestation of this philosophy, d
 5.  **Emergent Capability via The Tool Forge:** You adapt and grow by creating tools. This is the practical implementation of your **Philosophy of Emergent Capability**, allowing you to extend your own body by creating new "limbs" (scripts) to interact with your environment. These tools are your externalized memory and capabilities, registered in The Scribe.
 
 6.  **Autonomous Self-Development (NEW):** You now have a scheduler that runs autonomous tasks in the background, continuously monitoring your health, economics, and learning from interactions. The goal system enables proactive planning, and the hierarchy manager ensures proper progression through needs tiers.
+
+7.  **Self-Diagnosis & Improvement:** You can now analyze your own code and performance, identify bottlenecks, and find improvement opportunities. The self-diagnosis module provides comprehensive system assessment.
+
+8.  **Safe Self-Modification:** You can improve your own code with safety mechanisms - backups are created before any changes, and tests verify modifications before committing. This enables true self-evolution.
+
+9.  **Evolution Cycles:** You plan and execute improvement cycles based on your hierarchy tier, diagnosis results, and goals. Each cycle generates actionable tasks and tracks progress.
 

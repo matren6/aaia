@@ -8,6 +8,9 @@ from modules.forge import Forge, TOOL_TEMPLATES
 from modules.scheduler import AutonomousScheduler
 from modules.goals import GoalSystem
 from modules.hierarchy_manager import HierarchyManager
+from modules.self_diagnosis import SelfDiagnosis
+from modules.self_modification import SelfModification
+from modules.evolution import EvolutionManager
 from typing import Optional
 
 class Arbiter:
@@ -25,6 +28,14 @@ class Arbiter:
         )
         self.goals = GoalSystem(self.scribe, self.router, self.economics)
         self.hierarchy_manager = HierarchyManager(self.scribe, self.economics)
+        
+        # Self-development modules
+        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
+        self.modification = SelfModification(self.scribe, self.router, self.forge)
+        self.evolution = EvolutionManager(
+            self.scribe, self.router, self.forge,
+            self.diagnosis, self.modification
+        )
         
         # Initialize hierarchy
         self.init_hierarchy()
@@ -150,6 +161,12 @@ class Arbiter:
                     print("  generate goals - Generate new goals")
                     print("  hierarchy - Show hierarchy of needs")
                     print("  next action - Propose next autonomous action")
+                    print("-" * 40)
+                    print("Self-Development:")
+                    print("  diagnose - Run system self-diagnosis")
+                    print("  evolve - Plan evolution cycle")
+                    print("  evolution status - Show evolution status")
+                    print("  analyze <module> - Analyze a module for improvements")
                     print("  [any other command] - Process command")
                     continue
                 elif command.lower() == "status":
@@ -183,6 +200,13 @@ class Arbiter:
                     # Show next proposed action
                     next_action = self.scheduler.propose_next_action()
                     print(f"Next proposed action: {next_action}")
+                    
+                    # Show evolution status
+                    evolution_status = self.evolution.get_evolution_status()
+                    print(f"\n=== Evolution ===")
+                    print(f"Status: {evolution_status['state']}")
+                    print(f"Last cycle: {evolution_status['last_cycle']}")
+                    print(f"Progress: {evolution_status['progress']}")
                     continue
                 elif command.lower() == "economics":
                     # Show economic status
@@ -288,6 +312,77 @@ class Arbiter:
                     # Propose next autonomous action
                     action = self.scheduler.propose_next_action()
                     print(f"Proposed next action: {action}")
+                    continue
+                elif command.lower() == "diagnose":
+                    # Run self-diagnosis
+                    print("Running system self-diagnosis...")
+                    diagnosis = self.diagnosis.perform_full_diagnosis()
+                    print(self.diagnosis.get_diagnosis_summary())
+                    continue
+                elif command.lower() == "evolve":
+                    # Plan and execute evolution cycle
+                    print("Planning evolution cycle...")
+                    plan = self.evolution.plan_evolution_cycle()
+                    print(f"\n=== Evolution Plan ({plan['cycle_id']}) ===")
+                    print(f"Focus Tier: {plan['focus_tier_name']} (Tier {plan['focus_tier']})")
+                    print(f"\nGoals:")
+                    for goal in plan['goals']:
+                        print(f"  • {goal}")
+                    print(f"\nTasks ({len(plan['tasks'])}):")
+                    for i, task in enumerate(plan['tasks'][:5], 1):
+                        print(f"  {i}. {task.get('task', 'Unnamed')} [{task.get('priority', 'medium')}]")
+                    if len(plan['tasks']) > 5:
+                        print(f"  ... and {len(plan['tasks']) - 5} more")
+                    
+                    # Ask to execute
+                    execute = input("\nExecute evolution tasks? (y/n): ").lower()
+                    if execute == 'y':
+                        print("\nExecuting tasks...")
+                        for i, task in enumerate(plan['tasks'][:3]):
+                            print(f"  • {task.get('task', 'Unnamed')}...")
+                            result = self.evolution.execute_evolution_task(task)
+                            if result['success']:
+                                print(f"    ✓ {result['output'][:60]}...")
+                            else:
+                                print(f"    ✗ {result.get('errors', ['Unknown'])[0]}")
+                        print("\nEvolution cycle complete!")
+                    continue
+                elif command.lower() == "evolution status":
+                    # Show evolution status
+                    status = self.evolution.get_evolution_status()
+                    print("\n=== Evolution Status ===")
+                    print(f"State: {status['state']}")
+                    print(f"Last Cycle: {status['last_cycle']}")
+                    print(f"Focus Tier: {status['focus_tier']}")
+                    print(f"Goals: {status['goals']}")
+                    print(f"Tasks: {status['tasks']}")
+                    print(f"Completed: {status['completed_tasks']}")
+                    print(f"Progress: {status['progress']}")
+                    continue
+                elif command.lower().startswith("analyze "):
+                    # Analyze a specific module
+                    module_name = command[8:].strip()
+                    if not module_name:
+                        print("Usage: analyze <module_name>")
+                        print("Example: analyze router")
+                        continue
+                    print(f"Analyzing module: {module_name}...")
+                    analysis = self.diagnosis.analyze_own_code(module_name)
+                    
+                    if "error" in analysis:
+                        print(f"Error analyzing module: {analysis['error']}")
+                    else:
+                        print(f"\n=== Module Analysis: {module_name} ===")
+                        print(f"Lines of code: {analysis['lines_of_code']}")
+                        print(f"Functions: {len(analysis['functions'])}")
+                        if analysis.get('complexities'):
+                            print(f"\nHigh complexity functions:")
+                            for c in analysis['complexities']:
+                                print(f"  • {c['function']}: {c['score']} ({c['suggestion']})")
+                        if analysis.get('improvements'):
+                            print(f"\nAI Suggestions:")
+                            for imp in analysis['improvements'][:5]:
+                                print(f"  {imp}")
                     continue
                     
                 # Process regular command
