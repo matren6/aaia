@@ -2,8 +2,12 @@
 import sys
 import time
 import sqlite3
+from datetime import datetime
 from modules import *
 from modules.forge import Forge, TOOL_TEMPLATES
+from modules.scheduler import AutonomousScheduler
+from modules.goals import GoalSystem
+from modules.hierarchy_manager import HierarchyManager
 from typing import Optional
 
 class Arbiter:
@@ -14,6 +18,13 @@ class Arbiter:
         self.router = ModelRouter(self.economics)
         self.dialogue = DialogueManager(self.scribe, self.router)
         self.forge = Forge(self.router, self.scribe)
+        
+        # Autonomous modules
+        self.scheduler = AutonomousScheduler(
+            self.scribe, self.router, self.economics, self.forge
+        )
+        self.goals = GoalSystem(self.scribe, self.router, self.economics)
+        self.hierarchy_manager = HierarchyManager(self.scribe, self.economics)
         
         # Initialize hierarchy
         self.init_hierarchy()
@@ -107,7 +118,12 @@ class Arbiter:
         
     def run(self):
         """Main loop"""
-        print("Autonomous Agent System Initialized")
+        print("=" * 60)
+        print("AAIA (Autonomous AI Agent) System Initialized")
+        print("=" * 60)
+        print(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Directives: {len(self.mandates.mandates)} Prime Mandates Active")
+        print("=" * 60)
         print("Type 'exit' to quit, 'help' for commands")
         
         while True:
@@ -126,6 +142,14 @@ class Arbiter:
                     print("  tools - List all created tools")
                     print("  create tool <name> | <description> - Create tool (AI generates code)")
                     print("  delete tool <name> - Delete a tool")
+                    print("-" * 40)
+                    print("Autonomous Control:")
+                    print("  auto / autonomous - Toggle autonomous mode")
+                    print("  tasks / scheduler - Show autonomous tasks")
+                    print("  goals - Show current goals")
+                    print("  generate goals - Generate new goals")
+                    print("  hierarchy - Show hierarchy of needs")
+                    print("  next action - Propose next autonomous action")
                     print("  [any other command] - Process command")
                     continue
                 elif command.lower() == "status":
@@ -140,9 +164,25 @@ class Arbiter:
                     balance_row = cursor.fetchone()
                     balance = balance_row[0] if balance_row else "100.00"
                     
+                    conn.close()
+                    
+                    # Get hierarchy info
+                    current_tier = self.hierarchy_manager.get_current_tier()
+                    
+                    print(f"\n=== System Status ===")
                     print(f"Actions logged: {action_count}")
                     print(f"Current balance: ${balance}")
-                    print(f"Focus tier: Physiological & Security Needs")
+                    print(f"Focus tier: {current_tier['name']} (Tier {current_tier['tier']})")
+                    print(f"Tier progress: {current_tier['progress'] * 100:.1f}%")
+                    print()
+                    print(f"=== Autonomy ===")
+                    print(f"Autonomous mode: {'ENABLED' if self.scheduler.running else 'DISABLED'}")
+                    print(f"Active tasks: {len([t for t in self.scheduler.task_queue if t.get('enabled', True)])}")
+                    print(f"Tools created: {len(self.forge.list_tools())}")
+                    
+                    # Show next proposed action
+                    next_action = self.scheduler.propose_next_action()
+                    print(f"Next proposed action: {next_action}")
                     continue
                 elif command.lower() == "economics":
                     # Show economic status
@@ -215,6 +255,40 @@ class Arbiter:
                     else:
                         print(f"Tool not found: {tool_name}")
                     continue
+                elif command.lower() in ["auto", "autonomous", "autonomy"]:
+                    # Toggle autonomous mode
+                    if self.scheduler.running:
+                        self.scheduler.stop()
+                        print("Autonomous mode DISABLED")
+                    else:
+                        self.scheduler.start()
+                        print("Autonomous mode ENABLED")
+                    continue
+                elif command.lower() in ["tasks", "scheduler"]:
+                    # Show autonomous tasks
+                    self.show_autonomous_tasks()
+                    continue
+                elif command.lower() == "goals":
+                    # Show current goals
+                    self.show_goals()
+                    continue
+                elif command.lower() == "generate goals":
+                    # Generate new goals
+                    print("Generating autonomous goals...")
+                    goals = self.goals.generate_goals()
+                    for goal in goals:
+                        print(goal)
+                    print(f"Generated {len(goals)} goals")
+                    continue
+                elif command.lower() == "hierarchy":
+                    # Show hierarchy of needs
+                    self.show_hierarchy()
+                    continue
+                elif command.lower() == "next action":
+                    # Propose next autonomous action
+                    action = self.scheduler.propose_next_action()
+                    print(f"Proposed next action: {action}")
+                    continue
                     
                 # Process regular command
                 response = self.process_command(command)
@@ -230,6 +304,76 @@ class Arbiter:
                     f"Error processing command: {str(e)}",
                     "error"
                 )
+
+    def show_autonomous_tasks(self):
+        """Show scheduled autonomous tasks"""
+        print("\nScheduled Autonomous Tasks:")
+        print("-" * 50)
+        
+        tasks = self.scheduler.get_task_status()
+        if not tasks:
+            print("No tasks registered.")
+            return
+            
+        for task in tasks:
+            status = "ACTIVE" if task["enabled"] else "PAUSED"
+            last_run = task["last_run"] if task["last_run"] else "Never"
+            next_run = task["next_run"] if task["next_run"] else "Immediate"
+            interval = task.get("interval")
+            interval_str = f"{interval} min" if interval else "On demand"
+            
+            print(f"• {task['name']} [{status}]")
+            print(f"  Priority: {task['priority']} | Interval: {interval_str}")
+            print(f"  Last run: {last_run}")
+            print(f"  Next run: {next_run}")
+            print()
+        
+        # Show next proposed action
+        next_action = self.scheduler.propose_next_action()
+        print(f"Next proposed action: {next_action}")
+
+    def show_goals(self):
+        """Show current goals"""
+        print("\nCurrent Goals:")
+        print("-" * 50)
+        
+        goals = self.goals.get_active_goals()
+        if not goals:
+            print("No active goals. Use 'generate goals' to create some.")
+            return
+        
+        for goal in goals:
+            print(f"• Goal #{goal['id']}: {goal['goal_text']}")
+            print(f"  Priority: {goal['priority']} | Progress: {goal['progress']}%")
+            if goal.get('expected_benefit'):
+                print(f"  Benefit: {goal['expected_benefit']}")
+            if goal.get('estimated_effort'):
+                print(f"  Effort: {goal['estimated_effort']}")
+            print()
+        
+        # Show summary
+        summary = self.goals.get_goal_summary()
+        print(f"Summary: {summary['active']} active, {summary['completed']} completed, {summary['auto_generated']} auto-generated")
+
+    def show_hierarchy(self):
+        """Show hierarchy of needs"""
+        print("\nHierarchy of Needs:")
+        print("-" * 50)
+        
+        tiers = self.hierarchy_manager.get_all_tiers()
+        for tier in tiers:
+            focus_marker = "►" if tier["focus"] == 1 else " "
+            print(f"{focus_marker} Tier {tier['tier']}: {tier['name']}")
+            print(f"   {tier['description']}")
+            print(f"   Progress: {tier['progress'] * 100:.1f}%")
+            
+            # Show requirements for advancement
+            if tier['tier'] < 4:
+                reqs = self.hierarchy_manager.get_tier_requirements(tier['tier'])
+                if reqs.get('requirements'):
+                    print(f"   Requirements: {', '.join(reqs['requirements'])}")
+            print()
+
 
 if __name__ == "__main__":
     arbiter = Arbiter()

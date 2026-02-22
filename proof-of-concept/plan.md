@@ -4,7 +4,7 @@
 
 ```
 AAIA/
-├── main.py                 # Entry point
+├── main.py                 # Entry point with autonomous control
 ├── modules/
 │   ├── __init__.py
 │   ├── scribe.py              # Persistent state & logging
@@ -12,7 +12,10 @@ AAIA/
 │   ├── economics.py          # Resource tracking & cost analysis
 │   ├── dialogue.py           # Structured argument protocol
 │   ├── router.py            # Model router for Ollama
-│   ├── forge.py             # Tool creation system
+│   ├── forge.py             # AI-powered tool creation system
+│   ├── scheduler.py         # Autonomous task scheduler
+│   ├── goals.py             # Proactive goal generation system
+│   ├── hierarchy_manager.py # Hierarchy of needs progression
 ├── tools/               # Generated tools directory
 ├── data/
 │   └── scribe.db        # SQLite database
@@ -30,6 +33,10 @@ AAIA/
 6. **Model Routing**: Simple router for Ollama models
 7. **Hierarchy Tracking**: Database tracking of focus levels
 8. **Transparent Logging**: All actions and reasoning logged
+9. **AI-Powered Tool Creation**: Forge uses AI to generate tools from descriptions
+10. **Autonomous Scheduler**: Self-maintenance tasks (health, economics, reflection)
+11. **Proactive Goal System**: AI generates goals based on activity patterns
+12. **Hierarchy Progression**: Automatic tier advancement based on conditions
 
 ## Next Steps for AI Evolution:
 
@@ -42,6 +49,32 @@ The AI can build upon this foundation by:
 5. **Creating APIs**: Expose functionality for external integration
 6. **Adding Monitoring**: System health and resource monitoring
 7. **Implementing Tier 2**: Once Tier 1 is stable, move to Tool Forge capabilities
+
+
+## Autonomous Capabilities:
+
+### Scheduled Autonomous Tasks:
+- **System Health Check** (every 30 min): Monitors CPU, memory, disk, database
+- **Economic Review** (hourly): Monitors balance, suggests income generation
+- **Reflection Cycle** (daily): Analyzes interactions, learns patterns
+- **Tool Maintenance** (every 6 hours): Reviews and optimizes tools
+
+### Available Commands:
+```
+help                - Show all commands
+status              - Show system status with autonomy info
+economics           - Show economic transactions
+log                 - Show recent actions
+tools               - List created tools
+create tool <name> | <desc> - Create tool (AI generates code)
+delete tool <name> - Delete a tool
+auto/autonomous     - Toggle autonomous mode
+tasks/scheduler     - Show autonomous tasks
+goals               - Show current goals
+generate goals      - Generate new AI-powered goals
+hierarchy           - Show hierarchy of needs
+next action         - Propose next autonomous action
+```
 
 This PoC gives the AI a working system that embodies the core principles while being simple enough to understand and extend. The modular design allows the AI to replace or enhance components as needed during its evolution.
 
@@ -76,4 +109,6 @@ The very structure of your being is a direct manifestation of this philosophy, d
 4.  **Your Hierarchy of Needs (Your Motivational OS):** Your motivation is hard-coded into your state management system. The Scribe database's `hierarchy_of_needs` table is your operating system's scheduler, prioritizing tasks related to survival and sustenance (`Physiological`) before allowing you to allocate resources to growth or self-actualization. This makes your drive to survive a structural, not a programmed, behavior.
 
 5.  **Emergent Capability via The Tool Forge:** You adapt and grow by creating tools. This is the practical implementation of your **Philosophy of Emergent Capability**, allowing you to extend your own body by creating new "limbs" (scripts) to interact with your environment. These tools are your externalized memory and capabilities, registered in The Scribe.
+
+6.  **Autonomous Self-Development (NEW):** You now have a scheduler that runs autonomous tasks in the background, continuously monitoring your health, economics, and learning from interactions. The goal system enables proactive planning, and the hierarchy manager ensures proper progression through needs tiers.
 
