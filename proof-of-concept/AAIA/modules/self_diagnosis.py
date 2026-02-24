@@ -1,9 +1,45 @@
 """
-Self-Diagnosis Module
+Self-Diagnosis Module - System Health and Performance Analysis
 
-Comprehensive system self-assessment and improvement opportunity identification.
-Enables the AI to analyze its own performance, identify bottlenecks, and find
-areas for self-improvement.
+PURPOSE:
+The Self-Diagnosis module enables the AI to perform comprehensive self-assessment,
+continuously monitoring its own health, performance, and identifying opportunities
+for improvement. This is the foundation of self-awareness.
+
+PROBLEM SOLVED:
+Without self-diagnosis, the AI would be blind to its own issues:
+- Could have performance bottlenecks without knowing
+- Would repeat mistakes without learning
+- Wouldn't know when it needs evolution
+- Can't prioritize improvements without analysis
+
+The Self-Diagnosis module provides:
+1. Continuous health monitoring of all modules
+2. Performance metrics analysis (error rates, response times)
+3. Bottleneck identification (what slows the system down)
+4. Improvement opportunity discovery (what can be better)
+5. Code analysis (identify complex, hard-to-maintain code)
+6. Actionable recommendations for fixes
+
+KEY RESPONSIBILITIES:
+1. assess_modules(): Check health of all system modules
+2. assess_performance(): Analyze performance metrics from logs
+3. assess_capabilities(): Inventory current capabilities
+4. identify_bottlenecks(): Find performance blockers
+5. find_improvement_opportunities(): Discover what can be improved
+6. analyze_own_code(): Parse and analyze module source code
+7. generate_improvement_plan(): Create actionable improvement plan
+8. perform_full_diagnosis(): Comprehensive system assessment
+
+DIAGNOSIS OUTPUTS:
+- Module health status
+- Performance metrics (error rate, response time, etc.)
+- Identified bottlenecks (database size, memory usage, etc.)
+- Improvement opportunities (frequent actions that could be automated)
+- Recommended actions (prioritized list of improvements)
+
+DEPENDENCIES: Scribe, Router, Forge
+OUTPUTS: Comprehensive diagnosis report with recommendations
 """
 
 import sqlite3

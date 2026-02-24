@@ -3,3 +3,17 @@ from .economics import EconomicManager
 from .mandates import MandateEnforcer
 from .router import ModelRouter
 from .dialogue import DialogueManager
+from .forge import Forge, TOOL_TEMPLATES
+from .scheduler import AutonomousScheduler
+from .goals import GoalSystem
+from .hierarchy_manager import HierarchyManager
+from .self_diagnosis import SelfDiagnosis
+from .self_modification import SelfModification
+from .evolution import EvolutionManager
+from .metacognition import MetaCognition
+from .capability_discovery import CapabilityDiscovery
+from .intent_predictor import IntentPredictor
+from .environment_explorer import EnvironmentExplorer
+from .strategy_optimizer import StrategyOptimizer
+from .evolution_orchestrator import EvolutionOrchestrator
+from .evolution_pipeline import EvolutionPipeline

@@ -1,8 +1,49 @@
 """
-Hierarchy Manager Module
+Hierarchy Manager Module - Needs-Based Development Progression
 
-Manages the AI's progression through hierarchy of needs,
-tracking which tier is currently focused and updating based on conditions.
+PURPOSE:
+The Hierarchy Manager implements a needs-based progression system (inspired by
+Maslow's hierarchy) that determines what the AI should focus on at any given
+time. Just as humans progress from basic needs to self-actualization, the AI
+moves through tiers based on what needs are currently met.
+
+PROBLEM SOLVED:
+Without hierarchy of needs, the AI wouldn't know what to prioritize:
+- Should it focus on survival (resources) or growth (capabilities)?
+- What's most important at any given moment?
+- How does it progress from basic to advanced capabilities?
+- What triggers advancement to higher tiers?
+
+THE FOUR TIERS:
+1. PHYSIOLOGICAL & SECURITY (Tier 1):
+   - Basic resource needs: balance > $50
+   - System health: memory < 80%, disk < 85%
+   - When met: Progress to Tier 2
+
+2. GROWTH & CAPABILITY (Tier 2):
+   - Create tools (5+)
+   - Learn new capabilities
+   - When met: Progress to Tier 3
+
+3. COGNITIVE & ESTEEM (Tier 3):
+   - Complete reflection cycles (7+)
+   - Self-improvement activities
+   - When met: Progress to Tier 4
+
+4. SELF-ACTUALIZATION (Tier 4):
+   - Proactive master assistance
+   - Goal achievement
+   - Ultimate state of autonomous operation
+
+KEY RESPONSIBILITIES:
+1. update_focus(): Check conditions and progress tiers
+2. get_current_tier(): What's currently focused
+3. get_all_tiers(): View entire hierarchy
+4. update_progress(): Track progress within a tier
+5. get_tier_requirements(): What's needed to advance
+
+DEPENDENCIES: Scribe, Economics
+OUTPUTS: Current tier, progress status, tier advancement decisions
 """
 
 import sqlite3

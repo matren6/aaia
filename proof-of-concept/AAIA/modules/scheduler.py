@@ -1,17 +1,59 @@
 """
-Autonomous Task Scheduler Module
+Autonomous Task Scheduler Module - Self-Directed Background Operations
 
-Provides autonomous task scheduling and self-development capabilities.
-Enables the AI to proactively maintain itself, learn from interactions, and improve.
+PURPOSE:
+The Scheduler enables the AI to operate autonomously by running background tasks
+at specified intervals. It provides the "heartbeat" of self-development, regularly
+performing maintenance, reflection, and improvement activities without requiring
+external triggers.
+
+PROBLEM SOLVED:
+A truly autonomous AI shouldn't wait for commands to improve itself:
+- System health needs continuous monitoring
+- Regular reflection improves understanding of master
+- Capabilities should be discovered and developed proactively
+- Evolution should happen on a schedule, not just on demand
+- Self-diagnosis should run periodically
+
+KEY RESPONSIBILITIES:
+1. Run background tasks at specified intervals
+2. Priority-based task queue management
+3. System health checks (CPU, memory, disk)
+4. Economic review and budget management
+5. Daily reflection cycles
+6. Tool maintenance
+7. Evolution checks
+8. Self-diagnosis execution
+9. Performance snapshot recording
+10. Capability discovery
+11. Intent prediction
+12. Environment exploration
+
+SCHEDULED TASKS:
+- system_health_check: Every 30 minutes
+- economic_review: Every hour
+- reflection_cycle: Every 24 hours
+- tool_maintenance: Every 6 hours
+- evolution_check: Every 24 hours
+- self_diagnosis: Every 6 hours
+- performance_snapshot: Every hour
+- capability_discovery: Every 48 hours
+- intent_prediction: Every 12 hours
+- environment_exploration: Every 24 hours
+
+DEPENDENCIES: Scribe, Router, Economics, Forge, SelfDiagnosis, SelfModification, Evolution
+OUTPUTS: Background execution of autonomous tasks, scheduler status
 """
-
-import schedule
 import time
 import threading
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Callable, Optional
 import psutil
+from modules.self_diagnosis import SelfDiagnosis
+from modules.self_modification import SelfModification
+from modules.evolution import EvolutionManager
+from modules.evolution_pipeline import EvolutionPipeline
 
 
 class AutonomousScheduler:
@@ -28,7 +70,13 @@ class AutonomousScheduler:
         # Priority-based task queue
         self.task_queue = []
         self.task_history = []
-        
+
+        # Add evolution pipeline
+        self.diagnosis = SelfDiagnosis(scribe, router, forge)
+        self.modification = SelfModification(scribe, router, forge)
+        self.evolution = EvolutionManager(scribe, router, forge, self.diagnosis, self.modification)
+        self.pipeline = EvolutionPipeline(scribe, router, forge, self.diagnosis, self.modification, self.evolution)
+
         # Register autonomous behaviors
         self.register_default_tasks()
 
@@ -57,6 +105,45 @@ class AutonomousScheduler:
             function=self.maintain_tools,
             interval_hours=6,
             priority=2
+        )
+        self.register_task(
+            name="evolution_check",
+            function=self.check_evolution_needs,
+            interval_hours=24,  # Daily check
+            priority=2
+        )
+        
+        self.register_task(
+            name="self_diagnosis",
+            function=self.run_self_diagnosis,
+            interval_hours=6,  # Every 6 hours
+            priority=3
+        )
+        
+        # Advanced self-development tasks
+        self.register_task(
+            name="performance_snapshot",
+            function=self.record_performance_snapshot,
+            interval_hours=1,
+            priority=2
+        )
+        self.register_task(
+            name="capability_discovery",
+            function=self.run_capability_discovery,
+            interval_hours=48,  # Every 2 days
+            priority=3
+        )
+        self.register_task(
+            name="intent_prediction",
+            function=self.run_intent_prediction,
+            interval_hours=12,
+            priority=3
+        )
+        self.register_task(
+            name="environment_exploration",
+            function=self.run_environment_exploration,
+            interval_hours=24,
+            priority=3
         )
 
     def register_task(self, name: str, function: Callable, 
@@ -465,3 +552,64 @@ JUSTIFICATION: [why it's valuable]
                 task["enabled"] = enabled
                 return True
         return False
+
+    def check_evolution_needs(self):
+        """Check if evolution is needed and run if necessary"""
+        # Run quick diagnosis
+        diagnosis = self.diagnosis.perform_full_diagnosis()
+        
+        # Check evolution conditions
+        if self.pipeline.should_evolve(diagnosis):
+            # Notify before starting evolution
+            self.scribe.log_action(
+                "Evolution conditions met",
+                f"Starting evolution pipeline with {len(diagnosis.get('improvement_opportunities', []))} opportunities",
+                "evolution_triggered"
+            )
+            
+            # Run evolution pipeline
+            result = self.pipeline.run_autonomous_evolution()
+            
+            return f"Evolution pipeline completed: {result.get('status')}"
+        else:
+            return "Evolution not needed at this time"
+            
+    def run_self_diagnosis(self):
+        """Run periodic self-diagnosis"""
+        diagnosis = self.diagnosis.perform_full_diagnosis()
+        
+        # Log key metrics
+        bottlenecks = len(diagnosis.get("bottlenecks", []))
+        opportunities = len(diagnosis.get("improvement_opportunities", []))
+        
+        return f"Self-diagnosis complete: {bottlenecks} bottlenecks, {opportunities} opportunities"
+    
+    def record_performance_snapshot(self):
+        """Record performance metrics for trend analysis"""
+        from modules.metacognition import MetaCognition
+        metacog = MetaCognition(self.scribe, self.router, self.diagnosis)
+        metrics = metacog.collect_current_metrics()
+        metacog.record_performance_snapshot(metrics)
+        return f"Performance snapshot recorded: {metrics.get('error_rate', 0)}% error rate"
+    
+    def run_capability_discovery(self):
+        """Discover new capabilities the system could develop"""
+        from modules.capability_discovery import CapabilityDiscovery
+        cap_discovery = CapabilityDiscovery(self.scribe, self.router, self.forge)
+        capabilities = cap_discovery.discover_new_capabilities()
+        return f"Discovered {len(capabilities)} new capabilities"
+    
+    def run_intent_prediction(self):
+        """Predict master's next commands"""
+        from modules.intent_predictor import IntentPredictor
+        intent_pred = IntentPredictor(self.scribe, self.router)
+        predictions = intent_pred.predict_next_commands()
+        return f"Made {len(predictions)} intent predictions"
+    
+    def run_environment_exploration(self):
+        """Explore environment for opportunities"""
+        from modules.environment_explorer import EnvironmentExplorer
+        env_exp = EnvironmentExplorer(self.scribe, self.router)
+        exploration = env_exp.explore_environment()
+        opportunities = env_exp.find_development_opportunities()
+        return f"Environment explored: {len(exploration.get('available_commands', []))} commands, {len(opportunities)} opportunities"

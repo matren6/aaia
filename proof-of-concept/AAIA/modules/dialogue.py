@@ -1,4 +1,43 @@
 # dialogue.py
+"""
+Dialogue Manager Module - Structured Communication Protocol
+
+PURPOSE:
+The Dialogue Manager implements a structured argument protocol for processing
+and analyzing the master's commands. It provides critical thinking capabilities
+that help identify risks, alternative approaches, and potential issues with
+requested actions.
+
+PROBLEM SOLVED:
+When receiving a command, the AI shouldn't just execute it blindly. The Dialogue
+Manager adds a layer of analysis that:
+1. Ensures understanding of the master's true intent
+2. Identifies potential risks or flaws in the command
+3. Suggests alternative (potentially better) approaches
+4. Creates a record of the reasoning process
+5. Provides transparency into AI decision-making
+
+Without this, the AI would be a simple command executor rather than a
+thoughtful partner.
+
+KEY RESPONSIBILITIES:
+1. Implement structured argument protocol
+2. Analyze commands for understanding, risks, alternatives
+3. Use AI to perform critical analysis of commands
+4. Log dialogue phases and reasoning
+5. Parse structured responses into components
+6. Provide feedback on command analysis
+
+DIALOGUE PHASES:
+- Understanding: What is the master trying to achieve?
+- Risk Analysis: What could go wrong?
+- Alternative Approaches: Is there a better way?
+- Recommendation: What should be done?
+
+DEPENDENCIES: Scribe, Router
+OUTPUTS: Tuple of (understanding, risks, alternatives)
+"""
+
 from typing import Optional
 from .scribe import Scribe
 from .router import ModelRouter

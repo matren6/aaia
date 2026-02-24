@@ -1,9 +1,42 @@
 """
-Evolution Manager Module
+Evolution Manager Module - Self-Evolution Planning and Execution
 
-Manages the AI's self-evolution process, including planning improvement cycles,
-executing evolution tasks, and tracking progress.
-This is the orchestrator of self-development.
+PURPOSE:
+The Evolution Manager is the core planning and execution engine for AI self-evolution.
+It takes diagnosis results and converts them into actionable improvement tasks,
+then executes those tasks to improve the system.
+
+PROBLEM SOLVED:
+Self-diagnosis finds problems, but who acts on them?
+- Need someone to plan improvement cycles
+- Need to convert diagnosis into actionable tasks
+- Need to execute tasks and track progress
+- Need to coordinate with other modules (Forge, Modification)
+- Need to learn from evolution results
+
+KEY RESPONSIBILITIES:
+1. plan_evolution_cycle(): Create improvement plan from diagnosis
+2. execute_evolution_task(): Execute a single improvement task
+3. _generate_tasks_for_goal(): AI-generate specific tasks
+4. _execute_optimization_task(): Run optimization tasks
+5. _execute_creation_task(): Create new tools/capabilities
+6. _execute_analysis_task(): Run analysis tasks
+7. get_evolution_history(): Past evolution cycles
+8. get_current_plan(): Active evolution plan
+9. get_evolution_status(): Overall evolution state
+10. complete_task(): Mark tasks as done
+
+EVOLUTION WORKFLOW:
+1. Receive diagnosis results
+2. Determine focus based on hierarchy tier
+3. Create goals for the cycle
+4. Generate specific tasks from goals
+5. Execute tasks (optimize, create, analyze)
+6. Track results and success
+7. Save to evolution history
+
+DEPENDENCIES: Scribe, Router, Forge, SelfDiagnosis, SelfModification
+OUTPUTS: Evolution plans, task execution results, history
 """
 
 import json

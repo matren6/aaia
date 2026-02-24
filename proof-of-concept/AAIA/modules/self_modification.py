@@ -1,9 +1,46 @@
 """
-Self-Modification Module
+Self-Modification Module - Safe Code Improvement System
 
-Enables safe modification of the AI's own code with backup and rollback capabilities.
-This is the core of self-evolution, allowing the AI to improve itself while maintaining
-safety through comprehensive testing and backup systems.
+PURPOSE:
+The Self-Modification module enables the AI to safely modify its own code, with
+comprehensive backup and rollback capabilities. It provides the mechanism for
+self-improvement while ensuring the system can recover from bad modifications.
+
+PROBLEM SOLVED:
+For true self-evolution, the AI must be able to change itself:
+- But unchecked modifications could break the system
+- Need backups before any changes
+- Need rollback capability if something goes wrong
+- Need testing to verify changes work
+- Need AI assistance to suggest improvements
+
+KEY RESPONSIBILITIES:
+1. analyze_own_code(): Parse and analyze module source code
+2. modify_module(): Apply safe modifications to modules
+3. create_backup(): Create timestamped backups before changes
+4. restore_backup(): Rollback to previous version
+5. list_backups(): Show available backup files
+6. test_module(): Verify modified modules work correctly
+7. generate_code_improvement(): Use AI to suggest improvements
+8. apply_improvement(): Apply AI-generated improvements safely
+9. get_modification_history(): Track all modifications made
+
+SAFETY FEATURES:
+- Always creates backup before modification
+- Validates code syntax before writing
+- Tests module after modification
+- Automatically restores backup on test failure
+- Comprehensive error handling
+- Full audit trail of changes
+
+BACKUP SYSTEM:
+- Timestamped backups in backups/ directory
+- Can restore to any previous backup
+- Backups preserved until explicitly deleted
+- Registry of all backups with timestamps
+
+DEPENDENCIES: Scribe, Router, Forge
+OUTPUTS: Modified modules, backups, test results
 """
 
 import ast

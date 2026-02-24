@@ -1,9 +1,48 @@
 """
 Tool Forge Module - Dynamic Tool Creation System
 
-Allows the AI to create new capabilities/tools dynamically.
-Uses AI (via router) to generate tool code from descriptions.
-This is the foundation for Tier 2 AI evolution.
+PURPOSE:
+The Forge is the AI's tool-creation capability - it allows the system to
+generate and deploy new capabilities dynamically. Rather than being limited
+to pre-programmed functions, the AI can create new tools based on need,
+using AI to generate the code.
+
+PROBLEM SOLVED:
+Traditional AI systems are static - they can only do what they were
+programmed to do. The Forge solves this by enabling:
+1. Dynamic capability creation: New tools as needed
+2. AI-assisted code generation: Use AI to write tool code
+3. Safe code validation: Verify generated code before execution
+4. Tool lifecycle management: Create, register, use, delete
+5. Capability expansion: System can grow beyond original programming
+
+KEY RESPONSIBILITIES:
+1. Generate tool code using AI (via router)
+2. Validate generated code (syntax, AST parsing)
+3. Perform safety checks on generated code
+4. Create tool files in tools directory
+5. Maintain tool registry
+6. Execute tools on demand
+7. Delete/manage existing tools
+8. Provide tool templates for common operations
+
+WHAT IT CAN CREATE:
+- Data processing tools
+- File operation tools
+- API integration tools
+- Analysis tools
+- Automation tools
+- Any custom functionality needed
+
+SAFETY FEATURES:
+- AST parsing to validate code structure
+- Checks for dangerous operations (eval, exec, subprocess)
+- File system access warnings
+- Module wrapping with entry points
+- Registry for tracking all tools
+
+DEPENDENCIES: Router, Scribe
+OUTPUTS: New tool files, tool metadata, execution results
 """
 
 import os

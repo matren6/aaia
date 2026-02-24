@@ -1,3 +1,37 @@
+"""
+Router Module - Intelligent Model Selection and Routing
+
+PURPOSE:
+The Router is responsible for selecting the appropriate AI model for each task
+and managing the interaction with those models. It implements cost-benefit analysis
+to choose between different models based on task complexity and cost.
+
+PROBLEM SOLVED:
+Different tasks require different AI capabilities:
+- Simple tasks shouldn't use expensive models (waste of resources)
+- Complex reasoning tasks need more capable models
+- Coding tasks benefit from code-specialized models
+- Without routing, the system would either overspend on simple tasks or produce
+  poor results on complex tasks
+
+KEY RESPONSIBILITIES:
+1. Maintain registry of available models with their capabilities and costs
+2. Route requests to appropriate model based on task type and complexity
+3. Execute model calls via Ollama API
+4. Calculate and track inference costs
+5. Handle fallback when preferred model unavailable
+6. Optimize for cost-performance tradeoff
+
+PROBLEM IT SOLVES:
+- Cost optimization: Use cheap models for simple tasks
+- Capability matching: Use specialized models for specialized tasks
+- Resource management: Track token usage and costs
+- Abstraction: Other modules don't need to know model details
+
+DEPENDENCIES: EconomicManager (for cost tracking)
+OUTPUTS: Model responses for reasoning, analysis, code generation
+"""
+
 import subprocess
 import json
 from decimal import Decimal

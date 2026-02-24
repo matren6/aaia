@@ -3,15 +3,32 @@ import sys
 import time
 import sqlite3
 from datetime import datetime
-from modules import *
+from typing import Optional
+
+# Core modules
+from modules.scribe import Scribe
+from modules.economics import EconomicManager
+from modules.mandates import MandateEnforcer
+from modules.router import ModelRouter
+from modules.dialogue import DialogueManager
 from modules.forge import Forge, TOOL_TEMPLATES
+
+# Autonomous modules
 from modules.scheduler import AutonomousScheduler
 from modules.goals import GoalSystem
 from modules.hierarchy_manager import HierarchyManager
+
+# Self-development modules
 from modules.self_diagnosis import SelfDiagnosis
 from modules.self_modification import SelfModification
 from modules.evolution import EvolutionManager
-from typing import Optional
+from modules.metacognition import MetaCognition
+from modules.capability_discovery import CapabilityDiscovery
+from modules.intent_predictor import IntentPredictor
+from modules.environment_explorer import EnvironmentExplorer
+from modules.strategy_optimizer import StrategyOptimizer
+from modules.evolution_orchestrator import EvolutionOrchestrator
+from modules.evolution_pipeline import EvolutionPipeline
 
 class Arbiter:
     def __init__(self):
@@ -32,11 +49,19 @@ class Arbiter:
         # Self-development modules
         self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
         self.modification = SelfModification(self.scribe, self.router, self.forge)
-        self.evolution = EvolutionManager(
-            self.scribe, self.router, self.forge,
-            self.diagnosis, self.modification
-        )
+        self.evolution = EvolutionManager(self.scribe, self.router, self.forge,self.diagnosis, self.modification)
+        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge,self.diagnosis, self.modification, self.evolution)
         
+        # Advanced self-development modules
+        self.metacognition = MetaCognition(self.scribe, self.router, self.diagnosis)
+        self.capability_discovery = CapabilityDiscovery(self.scribe, self.router, self.forge)
+        self.intent_predictor = IntentPredictor(self.scribe, self.router)
+        self.environment_explorer = EnvironmentExplorer(self.scribe, self.router)
+        self.strategy_optimizer = StrategyOptimizer(self.scribe)
+        self.orchestrator = EvolutionOrchestrator(self.scribe, self.router, self.forge,self.diagnosis, 
+            self.modification,self.metacognition, self.capability_discovery,
+            self.intent_predictor, self.environment_explorer,self.strategy_optimizer)
+            
         # Initialize hierarchy
         self.init_hierarchy()
         
@@ -164,9 +189,20 @@ class Arbiter:
                     print("-" * 40)
                     print("Self-Development:")
                     print("  diagnose - Run system self-diagnosis")
-                    print("  evolve - Plan evolution cycle")
+                    print("  evolve - Run full evolution pipeline")
                     print("  evolution status - Show evolution status")
                     print("  analyze <module> - Analyze a module for improvements")
+                    print("  repair <module> - Attempt to repair a module")
+                    print("  pipeline - Run complete evolution pipeline")
+                    print("-" * 40)
+                    print("Advanced Self-Development:")
+                    print("  reflect - Run meta-cognition reflection")
+                    print("  discover - Discover new capabilities")
+                    print("  predict - Predict master's next commands")
+                    print("  explore - Explore environment")
+                    print("  orchestrate - Run major evolution orchestration")
+                    print("  strategy - Optimize evolution strategy")
+                    print("  master profile - Show master behavior model")
                     print("  [any other command] - Process command")
                     continue
                 elif command.lower() == "status":
@@ -384,6 +420,120 @@ class Arbiter:
                             for imp in analysis['improvements'][:5]:
                                 print(f"  {imp}")
                     continue
+                elif command.lower() == "pipeline":
+                    # Run complete evolution pipeline
+                    print("Running complete evolution pipeline...")
+                    result = self.pipeline.run_autonomous_evolution()
+                    print(f"\nPipeline Result: {result.get('status', 'unknown')}")
+                    if result.get('tasks_executed'):
+                        print(f"Tasks executed: {result.get('tasks_executed')}")
+                    if result.get('test_results'):
+                        tests = result.get('test_results')
+                        print(f"Tests: {tests.get('tests_passed', 0)}/{tests.get('tests_run', 0)} passed")
+                    continue
+                elif command.lower().startswith("repair "):
+                    # Repair a module
+                    module_name = command[7:].strip()
+                    if not module_name:
+                        print("Usage: repair <module_name>")
+                        print("Example: repair router")
+                        continue
+                    self.repair_module(module_name)
+                    continue
+                elif command.lower() == "reflect":
+                    # Run meta-cognition reflection
+                    print("Running meta-cognition reflection...")
+                    reflection = self.metacognition.reflect_on_effectiveness()
+                    print("\n=== Meta-Cognition Reflection ===")
+                    print(f"Timestamp: {reflection.get('timestamp', 'N/A')}")
+                    print("\nImprovements:")
+                    for imp in reflection.get('improvements', []):
+                        print(f"  ✓ {imp}")
+                    print("\nRegressions:")
+                    for reg in reflection.get('regressions', []):
+                        print(f"  ! {reg}")
+                    print("\nInsights:")
+                    for insight in reflection.get('insights', []):
+                        print(f"  • {insight}")
+                    print(f"\nEffectiveness Score: {self.metacognition.get_effectiveness_score()}")
+                    continue
+                elif command.lower() == "discover":
+                    # Discover new capabilities
+                    print("Discovering new capabilities...")
+                    capabilities = self.capability_discovery.discover_new_capabilities()
+                    print(f"\n=== Discovered Capabilities ({len(capabilities)}) ===")
+                    for cap in capabilities[:5]:
+                        if isinstance(cap, dict) and 'name' in cap:
+                            print(f"\n• {cap.get('name', 'Unknown')}")
+                            print(f"  Description: {cap.get('description', 'N/A')}")
+                            print(f"  Value: {cap.get('value', 'N/A')}/10 | Complexity: {cap.get('complexity', 'N/A')}/10")
+                            print(f"  Dependencies: {', '.join(cap.get('dependencies', [])) or 'None'}")
+                    continue
+                elif command.lower() == "predict":
+                    # Predict master's next commands
+                    print("Predicting master's next commands...")
+                    predictions = self.intent_predictor.predict_next_commands()
+                    print("\n=== Command Predictions ===")
+                    for i, pred in enumerate(predictions[:3], 1):
+                        if isinstance(pred, dict):
+                            print(f"\n{i}. {pred.get('command', 'Unknown')}")
+                            print(f"   Confidence: {pred.get('confidence', 0):.2f}")
+                            print(f"   Rationale: {pred.get('rationale', 'N/A')}")
+                    continue
+                elif command.lower() == "explore":
+                    # Explore environment
+                    print("Exploring environment...")
+                    exploration = self.environment_explorer.explore_environment()
+                    print("\n=== Environment Exploration ===")
+                    print(f"Platform: {exploration.get('system_info', {}).get('platform', 'Unknown')}")
+                    print(f"Containerized: {exploration.get('system_info', {}).get('containerized', False)}")
+                    print(f"Available Commands: {len(exploration.get('available_commands', []))}")
+                    resources = exploration.get('resource_availability', {})
+                    print(f"Memory Available: {resources.get('memory_available_gb', 'N/A')} GB")
+                    print(f"Disk Free: {resources.get('disk_free_gb', 'N/A')} GB")
+                    print(f"Network: {'Available' if exploration.get('network_capabilities', {}).get('external_http') else 'Limited'}")
+                    
+                    # Show opportunities
+                    opportunities = self.environment_explorer.find_development_opportunities()
+                    if opportunities:
+                        print("\n=== Development Opportunities ===")
+                        for opp in opportunities[:3]:
+                            print(f"• {opp.get('type', 'Unknown')}: {opp.get('value', '')}")
+                    continue
+                elif command.lower() == "orchestrate":
+                    # Run major evolution orchestration
+                    print("Running major evolution orchestration...")
+                    result = self.orchestrator.orchestrate_major_evolution()
+                    print(f"\n=== Evolution Complete ===")
+                    print(f"Overall Status: {result.get('overall_status', 'unknown')}")
+                    print(f"Phases Completed: {len(result.get('phases', {}))}")
+                    continue
+                elif command.lower() == "strategy":
+                    # Optimize evolution strategy
+                    print("Optimizing evolution strategy...")
+                    optimization = self.strategy_optimizer.optimize_evolution_strategy()
+                    print("\n=== Strategy Optimization ===")
+                    print("Adopt:")
+                    for item in optimization.get('adopt', [])[:3]:
+                        print(f"  ✓ {item.get('element', 'N/A')}: {item.get('value', 'N/A')}")
+                    print("Avoid:")
+                    for item in optimization.get('avoid', [])[:3]:
+                        print(f"  ✗ {item.get('element', 'N/A')}")
+                    print("\nExperiment with:")
+                    for exp in optimization.get('experiment_with', [])[:3]:
+                        print(f"  • {exp}")
+                    print(f"\nRecommended: {optimization.get('recommended_approach', 'N/A')}")
+                    continue
+                elif command.lower() == "master profile":
+                    # Show master behavior model
+                    profile = self.intent_predictor.get_master_profile()
+                    print("\n=== Master Behavior Profile ===")
+                    print(f"Total Interactions: {profile.get('total_interactions', 0)}")
+                    print(f"Model Confidence: {profile.get('model_confidence', 0):.2f}")
+                    print("\nTraits:")
+                    for trait, data in profile.get('traits', {}).items():
+                        print(f"  • {trait}: {data.get('value', 'unknown')} (confidence: {data.get('confidence', 0):.2f})")
+                    continue
                     
                 # Process regular command
                 response = self.process_command(command)
@@ -469,6 +619,117 @@ class Arbiter:
                     print(f"   Requirements: {', '.join(reqs['requirements'])}")
             print()
 
+        
+    def add_evolution_commands(self):
+        """Add evolution-related commands to help"""
+        help_text = """
+Evolution Commands:
+------------------
+  diagnose           - Run system self-diagnosis
+  evolve             - Run evolution pipeline manually
+  evolution-status   - Show evolution pipeline status
+  evolution-history  - Show evolution history
+  test-evolution     - Test evolution system
+  repair <module>    - Attempt to repair a module
+  optimize           - Run performance optimization
+"""
+        return help_text
+        
+    def evolve_command(self):
+        """Manual trigger for evolution pipeline"""
+        print("\n" + "=" * 60)
+        print("MANUAL EVOLUTION TRIGGER")
+        print("=" * 60)
+        
+        # Run diagnosis first
+        print("\nRunning system diagnosis...")
+        diagnosis = self.diagnosis.perform_full_diagnosis()
+        
+        print(f"\nDiagnosis Results:")
+        print(f"  • Bottlenecks: {len(diagnosis.get('bottlenecks', []))}")
+        print(f"  • Improvement Opportunities: {len(diagnosis.get('improvement_opportunities', []))}")
+        print(f"  • High Complexity Functions: {len(diagnosis.get('complexities', []))}")
+        
+        # Show bottlenecks
+        if diagnosis.get("bottlenecks"):
+            print("\nIdentified Bottlenecks:")
+            for bottleneck in diagnosis.get("bottlenecks", [])[:5]:
+                print(f"  • {bottleneck}")
+                
+        # Confirm evolution
+        confirm = input("\nProceed with evolution? (y/n): ").lower()
+        if confirm != 'y':
+            print("Evolution cancelled")
+            return
+            
+        # Run evolution pipeline
+        print("\nStarting evolution pipeline...")
+        result = self.pipeline.run_autonomous_evolution()
+        
+        print(f"\nEvolution Result: {result.get('status', 'unknown')}")
+        if result.get("tasks_executed"):
+            print(f"Tasks Executed: {result.get('tasks_executed')}")
+        if result.get("test_results"):
+            tests = result.get("test_results", {})
+            print(f"Tests Passed: {tests.get('tests_passed', 0)}/{tests.get('tests_run', 0)}")
+            
+    def repair_module(self, module_name: str):
+        """Attempt to repair a module"""
+        print(f"\nAttempting to repair module: {module_name}")
+        
+        # Analyze module
+        analysis = self.diagnosis.analyze_own_code(module_name)
+        
+        if "error" in analysis:
+            print(f"Module analysis failed: {analysis['error']}")
+            return
+            
+        print(f"\nModule Analysis:")
+        print(f"  • Lines of Code: {analysis.get('lines_of_code', 0)}")
+        print(f"  • Functions: {len(analysis.get('functions', []))}")
+        print(f"  • Complex Functions: {len(analysis.get('complexities', []))}")
+        
+        # Get repair suggestions
+        prompt = f"""
+        Module: {module_name}
+        
+        Issues found:
+        {chr(10).join(f'- {c}' for c in analysis.get('complexities', []))}
+        
+        Provide specific repair suggestions for this module.
+        Focus on fixing critical issues first.
+        
+        Format:
+        ISSUE: [description]
+        FIX: [specific code change]
+        """
+        
+        model_name, _ = self.router.route_request("coding", "high")
+        suggestions = self.router.call_model(
+            model_name,
+            prompt,
+            system_prompt="You are a code repair expert. Provide specific, actionable fixes."
+        )
+        
+        print(f"\nRepair Suggestions:")
+        print(suggestions)
+        
+        # Ask if we should apply fixes
+        apply = input("\nApply these fixes? (y/n): ").lower()
+        if apply == 'y':
+            # Apply fixes
+            changes = {
+                "type": "repair",
+                "module": module_name,
+                "suggestions": suggestions,
+                "description": f"Repair {module_name} based on analysis"
+            }
+            
+            success = self.modification.modify_module(module_name, changes)
+            if success:
+                print(f"✓ Module {module_name} repaired successfully")
+            else:
+                print(f"✗ Failed to repair {module_name}")
 
 if __name__ == "__main__":
     arbiter = Arbiter()

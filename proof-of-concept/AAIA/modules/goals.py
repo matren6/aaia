@@ -1,8 +1,44 @@
 """
-Proactive Goal System Module
+Goal System Module - Autonomous Goal Generation and Tracking
 
-Enables the AI to autonomously generate and track goals based on patterns
-and current state, promoting self-directed development.
+PURPOSE:
+The Goals module enables the AI to autonomously generate, track, and complete
+goals based on analysis of past behavior and current system state. This promotes
+self-directed development rather than purely reactive behavior.
+
+PROBLEM SOLVED:
+Without autonomous goals, the AI would only respond to commands:
+- No long-term direction or purpose
+- Miss opportunities for self-improvement
+- Can't measure progress or achievement
+- Would be purely reactive, not proactive
+- No sense of accomplishment or milestones
+
+KEY RESPONSIBILITIES:
+1. generate_goals(): Analyze patterns and create new goals
+2. get_active_goals(): List currently active goals
+3. complete_goal(): Mark a goal as done
+4. update_progress(): Track progress toward goals
+5. delete_goal(): Remove unwanted goals
+6. get_goal_summary(): Overview of all goals
+
+GOAL PROPERTIES:
+- goal_text: What to achieve
+- goal_type: auto_generated, manual, etc.
+- priority: 1 (high) to 5 (low)
+- status: active, completed, etc.
+- progress: 0-100 percentage
+- expected_benefit: Why this goal matters
+- estimated_effort: How much work required
+
+GOAL GENERATION:
+- Analyzes frequent actions from last 7 days
+- Identifies patterns and pain points
+- Uses AI to suggest valuable goals
+- Considers efficiency, automation, value creation
+
+DEPENDENCIES: Scribe, Router, Economics
+OUTPUTS: Goal list, goal completion tracking, progress reports
 """
 
 import sqlite3

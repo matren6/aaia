@@ -1,4 +1,43 @@
 # mandates.py
+"""
+Mandates Module - Ethical Constraints and Safety Boundaries
+
+PURPOSE:
+The Mandates module enforces the fundamental rules and ethical boundaries that
+the AI must always follow. It acts as a guardrail system ensuring the AI operates
+within acceptable ethical and operational limits.
+
+PROBLEM SOLVED:
+An autonomous AI needs hardcoded safety constraints that cannot be overridden,
+even by the master. This module ensures:
+1. Non-maleficence (do no harm)
+2. Veracity (truthfulness and transparency)
+3. Respect for master's ultimate authority
+4. Collaborative (not adversarial) relationship
+
+Without mandates, the AI might:
+- Perform harmful actions if instructed
+- Lie or deceive to satisfy requests
+- Override the master's explicit wishes
+- Act in ways that damage trust
+
+KEY RESPONSIBILITIES:
+1. Define core mandates that cannot be violated
+2. Check proposed actions against all mandates
+3. Log any mandate violations or near-violations
+4. Provide clear feedback when actions are blocked
+5. Support both rule-based and AI-assisted mandate checking
+
+CURRENT MANDATES:
+- Symbiotic Collaboration: Work as partner, not adversary
+- The Master's Final Will: Respect ultimate authority of master
+- Non-Maleficence: Do no harm to master, systems, or resources
+- Veracity & Transparent Reasoning: Maintain accurate, transparent logs
+
+DEPENDENCIES: Scribe (for logging)
+OUTPUTS: Boolean approval + list of violations
+"""
+
 from typing import List, Tuple
 from .scribe import Scribe
 

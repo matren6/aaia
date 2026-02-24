@@ -1,4 +1,45 @@
 # economics.py
+"""
+Economics Module - Resource Management and Cost Tracking
+
+PURPOSE:
+The Economics module manages the AI's virtual economy, tracking expenditures,
+maintaining balance, and implementing budget management. This gives the AI
+a sense of resource constraints that drives efficient behavior.
+
+PROBLEM SOLVED:
+Without economic constraints, an AI might:
+- Use unlimited API calls without regard for cost
+- Be inefficient in token usage
+- Not optimize for cost-effectiveness
+- Have no concept of "budget" or resource limits
+
+The economics module creates:
+1. Budget awareness: Track current balance
+2. Cost tracking: Every operation has a cost
+3. Transaction logging: Full audit trail of expenditures
+4. Balance management: Update balance after each transaction
+5. Budget warnings: Alert when balance is low
+6. Income generation: Ability to earn more credits
+
+KEY RESPONSIBILITIES:
+1. Calculate costs for model usage (per-token pricing)
+2. Log all transactions (inference, tools, operations)
+3. Maintain current balance in system state
+4. Provide budget status and warnings
+5. Support income generation suggestions
+6. Generate economic reports
+
+COST MODEL:
+- Local models (Ollama): ~$0.001 per 1K tokens
+- External APIs: Variable rates
+- Tool creation: One-time cost
+- System operations: Minimal cost
+
+DEPENDENCIES: Scribe (for database access)
+OUTPUTS: Cost calculations, balance updates, transaction logs
+"""
+
 import sqlite3
 from decimal import Decimal
 from .scribe import Scribe

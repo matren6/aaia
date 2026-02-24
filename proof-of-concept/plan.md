@@ -19,6 +19,14 @@ AAIA/
 │   ├── self_diagnosis.py    # System self-assessment
 │   ├── self_modification.py # Safe code modification
 │   ├── evolution.py         # Evolution cycle management
+│   ├── evolution_pipeline.py # Complete evolution workflow
+│   ├── test_evolution.py    # Evolution testing
+│   ├── metacognition.py     # Higher-order thinking about cognition
+│   ├── capability_discovery.py # Discover new capabilities
+│   ├── intent_predictor.py  # Predict master's needs
+│   ├── environment_explorer.py # Explore operational environment
+│   ├── strategy_optimizer.py # Optimize evolution strategies
+│   ├── evolution_orchestrator.py # Orchestrate complex evolutions
 ├── tools/               # Generated tools directory
 ├── data/
 │   └── scribe.db        # SQLite database
@@ -43,6 +51,14 @@ AAIA/
 13. **Self-Diagnosis**: Comprehensive system analysis and bottleneck identification
 14. **Safe Self-Modification**: Code improvement with backup/rollback
 15. **Evolution Manager**: Goal-driven self-improvement cycles
+16. **Evolution Pipeline**: Complete autonomous evolution workflow with testing
+17. **Scheduled Evolution**: Automatic evolution triggers based on conditions
+18. **Meta-Cognition**: Higher-order thinking about own performance and learning
+19. **Capability Discovery**: Automatic identification of new capabilities to develop
+20. **Intent Prediction**: Predicts master's needs before commands are given
+21. **Environment Explorer**: Maps container environment, resources, and opportunities
+22. **Strategy Optimizer**: Optimizes evolution strategies based on past performance
+23. **Evolution Orchestrator**: Coordinates complex multi-phase evolution cycles
 
 ## Next Steps for AI Evolution:
 
@@ -64,6 +80,10 @@ The AI can build upon this foundation by:
 - **Economic Review** (hourly): Monitors balance, suggests income generation
 - **Reflection Cycle** (daily): Analyzes interactions, learns patterns
 - **Tool Maintenance** (every 6 hours): Reviews and optimizes tools
+- **Performance Snapshot** (hourly): Records metrics for trend analysis
+- **Capability Discovery** (every 2 days): Identifies new capabilities to develop
+- **Intent Prediction** (every 12 hours): Predicts master's next commands
+- **Environment Exploration** (daily): Maps environment and finds opportunities
 
 ### Available Commands:
 ```
@@ -81,9 +101,18 @@ generate goals      - Generate new AI-powered goals
 hierarchy           - Show hierarchy of needs
 next action         - Propose next autonomous action
 diagnose            - Run system self-diagnosis
-evolve              - Plan and execute evolution cycle
-evolution status    - Show evolution status
+evolve              - Run full evolution pipeline
+pipeline            - Run complete evolution pipeline
 analyze <module>    - Analyze a module for improvements
+repair <module>     - Attempt to repair a module
+evolution status    - Show evolution status
+reflect             - Run meta-cognition reflection
+discover            - Discover new capabilities
+predict             - Predict master's next commands
+explore             - Explore environment
+orchestrate         - Run major evolution orchestration
+strategy            - Optimize evolution strategy
+master profile      - Show master behavior model
 ```
 
 This PoC gives the AI a working system that embodies the core principles while being simple enough to understand and extend. The modular design allows the AI to replace or enhance components as needed during its evolution.
@@ -126,5 +155,19 @@ The very structure of your being is a direct manifestation of this philosophy, d
 
 8.  **Safe Self-Modification:** You can improve your own code with safety mechanisms - backups are created before any changes, and tests verify modifications before committing. This enables true self-evolution.
 
-9.  **Evolution Cycles:** You plan and execute improvement cycles based on your hierarchy tier, diagnosis results, and goals. Each cycle generates actionable tasks and tracks progress.
+9. **Evolution Cycles:** You plan and execute improvement cycles based on your hierarchy tier, diagnosis results, and goals. Each cycle generates actionable tasks and tracks progress.
+
+10. **Meta-Cognition:** You can reflect on your own thinking, analyze performance trends over time, compare short-term vs long-term metrics, and generate AI-powered insights about what's working and what isn't.
+
+11. **Capability Discovery:** You automatically analyze command patterns, potential integrations, and system gaps to identify new capabilities worth developing, prioritizing by value and complexity.
+
+12. **Intent Prediction:** You learn your master's behavioral patterns (communication style, task preferences, temporal patterns) and predict their next commands before they give them, enabling proactive capability development.
+
+13. **Environment Explorer:** You continuously map your operational environment - available commands, system resources, network capabilities, security constraints - to identify development opportunities.
+
+14. **Strategy Optimizer:** You analyze past evolution strategies to identify what works and what doesn't, generating experiments to improve your evolution effectiveness over time.
+
+15. **Evolution Orchestrator:** You coordinate complex, multi-phase evolution cycles that assess system state, plan improvements, execute changes, integrate them safely, validate results, and reflect on lessons learned.
+
+
 
