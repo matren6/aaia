@@ -38,7 +38,27 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 class Scribe:
-    def __init__(self, db_path: str = "data/scribe.db"):
+    """
+    Core logging and persistence module.
+    
+    Provides centralized SQLite-based storage for all system data.
+    """
+    
+    def __init__(self, db_path: str = None):
+        """
+        Initialize Scribe with database path.
+        
+        Args:
+            db_path: Path to SQLite database. If None, uses config default.
+        """
+        if db_path is None:
+            # Try to get from config
+            try:
+                from modules.settings import get_config
+                db_path = get_config().database.path
+            except Exception:
+                db_path = "data/scribe.db"
+        
         self.db_path = db_path
         self.init_database()
         

@@ -16,6 +16,13 @@ class DatabaseConfig:
     timeout: int = 30
     backup_enabled: bool = True
     backup_interval: int = 3600
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.timeout <= 0:
+            raise ValueError("Database timeout must be positive")
+        if self.backup_interval <= 0:
+            raise ValueError("Backup interval must be positive")
 
 
 @dataclass
@@ -26,6 +33,17 @@ class SchedulerConfig:
     reflection_interval: int = 86400
     evolution_check_interval: int = 7200
     enabled: bool = True
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.diagnosis_interval <= 0:
+            raise ValueError("Diagnosis interval must be positive")
+        if self.health_check_interval <= 0:
+            raise ValueError("Health check interval must be positive")
+        if self.reflection_interval <= 0:
+            raise ValueError("Reflection interval must be positive")
+        if self.evolution_check_interval <= 0:
+            raise ValueError("Evolution check interval must be positive")
 
 
 @dataclass
@@ -36,6 +54,16 @@ class LLMConfig:
     base_url: str = "http://localhost:11434"
     timeout: int = 120
     max_retries: int = 3
+    max_tokens: int = 4096
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.timeout <= 0:
+            raise ValueError("LLM timeout must be positive")
+        if self.max_retries < 0:
+            raise ValueError("Max retries must be non-negative")
+        if self.max_tokens <= 0:
+            raise ValueError("Max tokens must be positive")
 
 
 @dataclass
@@ -46,6 +74,17 @@ class EconomicsConfig:
     inference_cost: float = 0.01
     tool_creation_cost: float = 1.0
     income_generation_enabled: bool = True
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.initial_balance < 0:
+            raise ValueError("Initial balance must be non-negative")
+        if self.low_balance_threshold < 0:
+            raise ValueError("Low balance threshold must be non-negative")
+        if self.inference_cost < 0:
+            raise ValueError("Inference cost must be non-negative")
+        if self.tool_creation_cost < 0:
+            raise ValueError("Tool creation cost must be non-negative")
 
 
 @dataclass
@@ -56,6 +95,13 @@ class EvolutionConfig:
     backup_before_modify: bool = True
     max_code_lines: int = 500
     require_tests: bool = False
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.max_retries < 0:
+            raise ValueError("Max retries must be non-negative")
+        if self.max_code_lines <= 0:
+            raise ValueError("Max code lines must be positive")
 
 
 @dataclass

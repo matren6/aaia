@@ -369,4 +369,3 @@ def injectable(cls: Type[T]) -> Type[T]:
         
     cls.__init__ = new_init
     return cls
-"

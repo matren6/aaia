@@ -59,13 +59,39 @@ from modules.evolution_pipeline import EvolutionPipeline
 class AutonomousScheduler:
     """Autonomous task scheduler for self-development and maintenance."""
 
-    def __init__(self, scribe, router, economics, forge):
+    def __init__(self, scribe, router, economics, forge, event_bus=None):
+        """
+        Initialize the autonomous scheduler.
+        
+        Args:
+            scribe: Scribe instance for logging
+            router: ModelRouter for AI calls
+            economics: EconomicManager for budget tracking
+            forge: Forge for tool management
+            event_bus: Optional EventBus for publishing events
+        """
         self.scribe = scribe
         self.router = router
         self.economics = economics
         self.forge = forge
+        self.event_bus = event_bus
         self.running = False
         self.thread = None
+        
+        # Load scheduler config
+        try:
+            from modules.settings import get_config
+            config = get_config()
+            self.config = config.scheduler
+        except Exception:
+            # Use defaults
+            class DefaultSchedulerConfig:
+                diagnosis_interval = 3600
+                health_check_interval = 1800
+                reflection_interval = 86400
+                evolution_check_interval = 7200
+                enabled = True
+            self.config = DefaultSchedulerConfig()
         
         # Priority-based task queue
         self.task_queue = []
@@ -166,7 +192,7 @@ class AutonomousScheduler:
 
     def start(self):
         """Start autonomous scheduler in background thread"""
-        if not self.running:
+        if not self.running and self.config.enabled:
             self.running = True
             self.thread = threading.Thread(target=self.run_scheduler, daemon=True)
             self.thread.start()
@@ -175,15 +201,40 @@ class AutonomousScheduler:
                 f"Running {len(self.task_queue)} autonomous tasks",
                 "scheduler_started"
             )
+            
+            # Publish event
+            if self.event_bus is not None:
+                try:
+                    from modules.bus import Event, EventType
+                    self.event_bus.publish(Event(
+                        type=EventType.SYSTEM_STARTUP,
+                        data={'component': 'AutonomousScheduler', 'tasks': len(self.task_queue)},
+                        source='AutonomousScheduler'
+                    ))
+                except ImportError:
+                    pass
 
     def stop(self):
         """Stop autonomous scheduler"""
-        self.running = False
-        self.scribe.log_action(
-            "Autonomous scheduler stopped",
-            "Scheduler disabled",
-            "scheduler_stopped"
-        )
+        if self.running:
+            self.running = False
+            self.scribe.log_action(
+                "Autonomous scheduler stopped",
+                "Scheduler disabled",
+                "scheduler_stopped"
+            )
+            
+            # Publish event
+            if self.event_bus is not None:
+                try:
+                    from modules.bus import Event, EventType
+                    self.event_bus.publish(Event(
+                        type=EventType.SYSTEM_SHUTDOWN,
+                        data={'component': 'AutonomousScheduler'},
+                        source='AutonomousScheduler'
+                    ))
+                except ImportError:
+                    pass
 
     def run_scheduler(self):
         """Main scheduler loop"""

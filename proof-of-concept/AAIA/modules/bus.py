@@ -201,6 +201,22 @@ class EventBus:
         """
         with self._lock:
             return event_type in self._handlers and len(self._handlers[event_type]) > 0
+            
+    def unsubscribe_all(self, handler: Callable) -> None:
+        """
+        Unsubscribe a handler from all events it was subscribed to.
+        
+        Args:
+            handler: The handler to remove from all subscriptions
+        """
+        with self._lock:
+            # Remove from specific handlers
+            for event_type in list(self._handlers.keys()):
+                if handler in self._handlers[event_type]:
+                    self._handlers[event_type].remove(handler)
+            # Remove from global handlers
+            if handler in self._global_handlers:
+                self._global_handlers.remove(handler)
 
 
 # Global event bus instance

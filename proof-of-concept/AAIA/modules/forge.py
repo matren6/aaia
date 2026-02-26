@@ -57,17 +57,28 @@ from typing import Dict, Any, List, Callable, Optional
 class Forge:
     """Dynamic tool creation system for extending AI capabilities."""
 
-    def __init__(self, router, scribe, tools_dir: str = "tools"):
+    def __init__(self, router, scribe, tools_dir: str = None, event_bus=None):
         """
         Initialize the Forge with router and scribe dependencies.
         
         Args:
             router: Model router for AI code generation
             scribe: Scribe instance for logging
-            tools_dir: Directory to store tools
+            tools_dir: Directory to store tools (defaults to config)
+            event_bus: Optional EventBus for publishing events
         """
         self.router = router
         self.scribe = scribe
+        self.event_bus = event_bus
+        
+        # Load tools directory from config if not provided
+        if tools_dir is None:
+            try:
+                from modules.settings import get_config
+                tools_dir = get_config().tools.tools_dir
+            except Exception:
+                tools_dir = "tools"
+        
         self.tools_dir = Path(tools_dir)
         self.tools_dir.mkdir(exist_ok=True)
         self._registry: Dict[str, Dict[str, Any]] = {}
@@ -159,6 +170,22 @@ class Forge:
             f"Description: {description}",
             "tool_created"
         )
+        
+        # Publish tool created event
+        if self.event_bus is not None:
+            try:
+                from modules.bus import Event, EventType
+                self.event_bus.publish(Event(
+                    type=EventType.TOOL_CREATED,
+                    data={
+                        'name': name,
+                        'description': description,
+                        'path': str(tool_path)
+                    },
+                    source='Forge'
+                ))
+            except ImportError:
+                pass
         
         return metadata
 
@@ -342,6 +369,38 @@ if __name__ == "__main__":
         )
         
         return True
+    
+    def execute_tool(self, name: str, **kwargs) -> Any:
+        """
+        Execute a tool by name with given parameters.
+        
+        Note: This is a basic implementation. In production,
+        consider using subprocess isolation for security.
+        """
+        if name not in self._registry:
+            raise ValueError(f"Tool not found: {name}")
+        
+        tool_path = Path(self._registry[name]["path"])
+        
+        # Publish tool loaded event
+        if self.event_bus is not None:
+            try:
+                from modules.bus import Event, EventType
+                self.event_bus.publish(Event(
+                    type=EventType.TOOL_LOADED,
+                    data={'name': name, 'parameters': kwargs},
+                    source='Forge'
+                ))
+            except ImportError:
+                pass
+        
+        # Dynamic import and execution
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(name, tool_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        return module.execute(**kwargs)
 
     def validate_tool_code(self, code: str) -> Dict[str, Any]:
         """
@@ -371,26 +430,6 @@ if __name__ == "__main__":
                 "valid": False,
                 "error": str(e)
             }
-
-    def execute_tool(self, name: str, **kwargs) -> Any:
-        """
-        Execute a tool by name with given parameters.
-        
-        Note: This is a basic implementation. In production,
-        consider using subprocess isolation for security.
-        """
-        if name not in self._registry:
-            raise ValueError(f"Tool not found: {name}")
-        
-        tool_path = Path(self._registry[name]["path"])
-        
-        # Dynamic import and execution
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(name, tool_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        return module.execute(**kwargs)
 
 
 # Example tool templates (as fallback)

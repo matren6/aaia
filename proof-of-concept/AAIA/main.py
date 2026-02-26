@@ -5,6 +5,11 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 
+# New architectural components
+from modules.settings import get_config, SystemConfig
+from modules.bus import EventBus, EventType, Event, get_event_bus
+from modules.container import Container, get_container
+
 # Core modules
 from modules.scribe import Scribe
 from modules.economics import EconomicManager
@@ -31,8 +36,81 @@ from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
 
 class Arbiter:
-    def __init__(self):
-        self.scribe = Scribe()
+    def __init__(self, use_container: bool = False):
+        """
+        Initialize the Arbiter and all modules.
+        
+        Args:
+            use_container: If True, use dependency injection container
+        """
+        # Load configuration
+        self.config = get_config()
+        
+        # Initialize event bus
+        self.event_bus = get_event_bus()
+        
+        # Publish system startup event
+        self.event_bus.publish(Event(
+            type=EventType.SYSTEM_STARTUP,
+            data={'message': 'Arbiter initializing'},
+            source='Arbiter'
+        ))
+        
+        if use_container:
+            # Use dependency injection container
+            self._init_with_container()
+        else:
+            # Traditional initialization (backward compatible)
+            self._init_traditional()
+        
+        # Initialize hierarchy
+        self.init_hierarchy()
+        
+        # Publish ready event
+        self.event_bus.publish(Event(
+            type=EventType.SYSTEM_STARTUP,
+            data={'message': 'Arbiter ready'},
+            source='Arbiter'
+        ))
+        
+    def _init_with_container(self):
+        """Initialize using dependency injection container."""
+        container = get_container()
+        
+        # Register services
+        from modules.setup import SystemBuilder
+        builder = SystemBuilder(self.config)
+        
+        # Build and get modules
+        system = builder.build()
+        modules = system['modules']
+        
+        # Assign to self
+        self.scribe = modules.get('Scribe')
+        self.economics = modules.get('EconomicManager')
+        self.mandates = modules.get('MandateEnforcer')
+        self.router = modules.get('ModelRouter')
+        self.dialogue = modules.get('DialogueManager')
+        self.forge = modules.get('Forge')
+        self.scheduler = modules.get('AutonomousScheduler')
+        self.goals = modules.get('GoalSystem')
+        self.hierarchy_manager = modules.get('HierarchyManager')
+        self.diagnosis = modules.get('SelfDiagnosis')
+        self.modification = modules.get('SelfModification')
+        self.evolution = modules.get('EvolutionManager')
+        self.pipeline = modules.get('EvolutionPipeline')
+        self.metacognition = modules.get('MetaCognition')
+        self.capability_discovery = modules.get('CapabilityDiscovery')
+        self.intent_predictor = modules.get('IntentPredictor')
+        self.environment_explorer = modules.get('EnvironmentExplorer')
+        self.strategy_optimizer = modules.get('StrategyOptimizer')
+        self.orchestrator = modules.get('EvolutionOrchestrator')
+        
+    def _init_traditional(self):
+        """Traditional initialization (backward compatible)."""
+        # Core modules - pass config path from settings
+        db_path = self.config.database.path
+        self.scribe = Scribe(db_path)
         self.economics = EconomicManager(self.scribe)
         self.mandates = MandateEnforcer(self.scribe)
         self.router = ModelRouter(self.economics)
@@ -49,8 +127,8 @@ class Arbiter:
         # Self-development modules
         self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
         self.modification = SelfModification(self.scribe, self.router, self.forge)
-        self.evolution = EvolutionManager(self.scribe, self.router, self.forge,self.diagnosis, self.modification)
-        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge,self.diagnosis, self.modification, self.evolution)
+        self.evolution = EvolutionManager(self.scribe, self.router, self.forge, self.diagnosis, self.modification)
+        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge, self.diagnosis, self.modification, self.evolution)
         
         # Advanced self-development modules
         self.metacognition = MetaCognition(self.scribe, self.router, self.diagnosis)
@@ -58,12 +136,11 @@ class Arbiter:
         self.intent_predictor = IntentPredictor(self.scribe, self.router)
         self.environment_explorer = EnvironmentExplorer(self.scribe, self.router)
         self.strategy_optimizer = StrategyOptimizer(self.scribe)
-        self.orchestrator = EvolutionOrchestrator(self.scribe, self.router, self.forge,self.diagnosis, 
-            self.modification,self.metacognition, self.capability_discovery,
-            self.intent_predictor, self.environment_explorer,self.strategy_optimizer)
-            
-        # Initialize hierarchy
-        self.init_hierarchy()
+        self.orchestrator = EvolutionOrchestrator(
+            self.scribe, self.router, self.forge, self.diagnosis,
+            self.modification, self.metacognition, self.capability_discovery,
+            self.intent_predictor, self.environment_explorer, self.strategy_optimizer
+        )
         
     def init_hierarchy(self):
         """Initialize hierarchy of needs"""

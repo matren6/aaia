@@ -49,15 +49,42 @@ from datetime import datetime
 class EvolutionManager:
     """Manages AI self-evolution cycles and task execution."""
 
-    def __init__(self, scribe, router, forge, diagnosis, modification):
+    def __init__(self, scribe, router, forge, diagnosis, modification, event_bus=None):
+        """
+        Initialize the Evolution Manager.
+        
+        Args:
+            scribe: Scribe instance for logging
+            router: ModelRouter for AI calls
+            forge: Forge for tool creation
+            diagnosis: SelfDiagnosis for analysis
+            modification: SelfModification for code changes
+            event_bus: Optional EventBus for publishing events
+        """
         self.scribe = scribe
         self.router = router
         self.forge = forge
         self.diagnosis = diagnosis
         self.modification = modification
+        self.event_bus = event_bus
         self.evolution_log_path = Path("data/evolution.json")
         self.evolution_log_path.parent.mkdir(parents=True, exist_ok=True)
         self.current_plan = None
+        
+        # Load evolution config
+        try:
+            from modules.settings import get_config
+            config = get_config()
+            self.config = config.evolution
+        except Exception:
+            # Use defaults
+            class DefaultEvolutionConfig:
+                max_retries = 3
+                safety_mode = True
+                backup_before_modify = True
+                max_code_lines = 500
+                require_tests = False
+            self.config = DefaultEvolutionConfig()
 
     def plan_evolution_cycle(self) -> Dict:
         """Plan the next evolution cycle based on diagnosis"""
@@ -211,6 +238,21 @@ EFFORT: [low/medium/high]
             "errors": []
         }
         
+        # Publish evolution started event
+        if self.event_bus is not None:
+            try:
+                from modules.bus import Event, EventType
+                self.event_bus.publish(Event(
+                    type=EventType.EVOLUTION_STARTED,
+                    data={
+                        'task': task.get('task'),
+                        'description': task.get('description', '')
+                    },
+                    source='EvolutionManager'
+                ))
+            except ImportError:
+                pass
+        
         try:
             task_name = task.get("task", "").lower()
             
@@ -240,6 +282,24 @@ EFFORT: [low/medium/high]
             f"Success: {result['success']}, Output: {str(result['output'])[:100]}...",
             "evolution_task_completed" if result["success"] else "evolution_task_failed"
         )
+        
+        # Publish evolution completed/failed event
+        if self.event_bus is not None:
+            try:
+                from modules.bus import Event, EventType
+                event_type = EventType.EVOLUTION_COMPLETED if result["success"] else EventType.EVOLUTION_FAILED
+                self.event_bus.publish(Event(
+                    type=event_type,
+                    data={
+                        'task': task.get('task'),
+                        'success': result["success"],
+                        'output': str(result["output"])[:200],
+                        'errors': result["errors"]
+                    },
+                    source='EvolutionManager'
+                ))
+            except ImportError:
+                pass
         
         return result
 
