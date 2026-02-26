@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Combine main.py and all modules/*.py files into a single markdown document.
+Combine main.py, all modules/*.py files, and all data/*.md files into a single markdown document.
 Useful for providing a complete codebase overview to AI agents.
 """
 
@@ -30,6 +30,22 @@ def get_python_files(base_path: Path, modules_folder: str = "modules") -> list[t
     return files
 
 
+def get_markdown_files(base_path: Path, data_folder: str = "data") -> list[tuple[str, Path]]:
+    """
+    Collect all .md files from the data folder.
+    Returns list of (display_name, full_path) tuples.
+    """
+    files = []
+    
+    # Add all data/*.md
+    data_path = base_path / data_folder
+    if data_path.exists():
+        for md_file in sorted(data_path.glob("*.md")):
+            files.append((f"data/{md_file.name}", md_file))
+    
+    return files
+
+
 def read_file(path: Path) -> str:
     """Read file contents as string."""
     with open(path, 'r', encoding='utf-8') as f:
@@ -41,7 +57,7 @@ def generate_markdown(files: list[tuple[str, Path]], title: str = "AAIA Codebase
     md_lines = [
         f"# {title}",
         "",
-        f"> Combined from {len(files)} Python files",
+        f"> Combined from {len(files)} files (Python and Markdown)",
         "",
         "---",
         ""
@@ -50,10 +66,18 @@ def generate_markdown(files: list[tuple[str, Path]], title: str = "AAIA Codebase
     for display_name, file_path in files:
         content = read_file(file_path)
         
+        # Determine language for code block based on file extension
+        if display_name.endswith('.py'):
+            language = 'python'
+        elif display_name.endswith('.md'):
+            language = 'markdown'
+        else:
+            language = ''
+        
         md_lines.extend([
             f"## `{display_name}`",
             "",
-            "```python",
+            f"```{language}",
             content,
             "```",
             "",
@@ -66,7 +90,7 @@ def generate_markdown(files: list[tuple[str, Path]], title: str = "AAIA Codebase
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Combine main.py and modules/*.py into a single markdown file"
+        description="Combine main.py, modules/*.py, and data/*.md into a single markdown file"
     )
     parser.add_argument(
         "-o", "--output",
@@ -79,6 +103,11 @@ def main():
         help="Modules folder name (default: modules)"
     )
     parser.add_argument(
+        "-d", "--data",
+        default="data",
+        help="Data folder name (default: data)"
+    )
+    parser.add_argument(
         "--title",
         default="AAIA Codebase",
         help="Title for the markdown document"
@@ -86,7 +115,7 @@ def main():
     parser.add_argument(
         "--path",
         default=".",
-        help="Base path to search for main.py and modules folder"
+        help="Base path to search for main.py, modules folder, and data folder"
     )
     
     args = parser.parse_args()
@@ -96,18 +125,22 @@ def main():
     
     print(f"Scanning: {base_path}")
     print(f"Modules folder: {args.modules}")
+    print(f"Data folder: {args.data}")
     
-    files = get_python_files(base_path, args.modules)
+    python_files = get_python_files(base_path, args.modules)
+    markdown_files = get_markdown_files(base_path, args.data)
     
-    if not files:
-        print("ERROR: No Python files found!")
+    all_files = python_files + markdown_files
+    
+    if not all_files:
+        print("ERROR: No files found!")
         return 1
     
-    print(f"Found {len(files)} files:")
-    for name, _ in files:
+    print(f"Found {len(all_files)} files:")
+    for name, _ in all_files:
         print(f"  - {name}")
     
-    markdown = generate_markdown(files, args.title)
+    markdown = generate_markdown(all_files, args.title)
     
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(markdown)
