@@ -161,7 +161,7 @@ class ModelRouter:
         except ImportError:
             # Fallback to subprocess if requests not available
             cmd = ["ollama", "run", model, prompt]
-            result = subprocess.run(cmd, capture_output=True, text=True, input=prompt)
+            result = subprocess.run(cmd, capture_output=True, text=True, input=prompt, check=False)
             
             if result.returncode == 0:
                 # Estimate token count (rough approximation)

@@ -401,7 +401,8 @@ class EnvironmentExplorer:
             result = subprocess.run(
                 ["echo", "test"],
                 capture_output=True,
-                timeout=5
+                timeout=5,
+                check=False
             )
             return result.returncode == 0
         except:
@@ -417,7 +418,8 @@ class EnvironmentExplorer:
             result = subprocess.run(
                 ["sudo", "-n", "true"],
                 capture_output=True,
-                timeout=2
+                timeout=2,
+                check=False
             )
             return result.returncode == 0
         except:

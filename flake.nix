@@ -48,6 +48,43 @@ EOF
           '';
         };
         
+        # NixOS module that creates users and services
+        nixosModules.aaia = { config, pkgs, ... }: {
+          # Create aaia user
+          users.users.aaia = {
+            isSystemUser = true;
+            group = "aaia";
+            description = "AAIA Autonomous AI Agent";
+          };
+          
+          users.groups.aaia = {};
+          
+          # Create systemd service
+          systemd.services.aaia = {
+            description = "AAIA Autonomous AI Agent";
+            wantedBy = [ "multi-user.target" ];
+            after = [ "network.target" ];
+            
+            serviceConfig = {
+              Type = "simple";
+              User = "aaia";
+              Group = "aaia";
+              ExecStart = "${self.packages.${system}.aaia}/bin/aaia";
+              Restart = "on-failure";
+              RestartSec = 5;
+              
+              # State directory
+              StateDirectory = "aaia";
+              StateDirectoryMode = "0755";
+            };
+            
+            # Environment variables
+            environment = {
+              PYTHONPATH = "${self.packages.${system}.aaia}/lib/aaia";
+            };
+          };
+        };
+        
         # Development shell
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [

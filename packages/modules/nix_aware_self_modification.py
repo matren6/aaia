@@ -498,7 +498,8 @@ Return the complete improved Python code:
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=300,  # 5 minute timeout
+                check=False
             )
             
             if result.returncode == 0:
@@ -529,16 +530,18 @@ Return the complete improved Python code:
                 "error"
             )
             return False
-    
+
     def rebuild_aaia(self) -> bool:
         """Rebuild AAIA with new changes"""
         try:
+            # Rebuild the system profile
             result = subprocess.run(
-                ["nix", "build", ".#aaia"],
+                ["nixos-rebuild", "switch"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 minute timeout
+                timeout=600,
+                check=False
             )
             
             if result.returncode == 0:
@@ -555,13 +558,6 @@ Return the complete improved Python code:
                     "error"
                 )
                 return False
-        except subprocess.TimeoutExpired:
-            self.scribe.log_action(
-                "Failed to rebuild AAIA",
-                "Timeout after 10 minutes",
-                "error"
-            )
-            return False
         except Exception as e:
             self.scribe.log_action(
                 "Failed to rebuild AAIA",
@@ -586,7 +582,8 @@ Return the complete improved Python code:
                 ["git", "checkout", "-b", f"evolution-{evolution_name}"],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if result.returncode == 0:
@@ -627,7 +624,8 @@ Return the complete improved Python code:
                 ["git", "add", "-A"],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if add_result.returncode != 0:
@@ -642,7 +640,8 @@ Return the complete improved Python code:
                 ["git", "commit", "-m", message],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if commit_result.returncode == 0:
@@ -683,7 +682,8 @@ Return the complete improved Python code:
                 ["git", "tag", "-a", version, "-m", f"Evolution {version}"],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if result.returncode == 0:
@@ -725,7 +725,8 @@ Return the complete improved Python code:
                     ["git", "branch", "--show-current"],
                     cwd=self.project_root,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    check=False
                 )
                 if branch_result.returncode == 0:
                     state["current_branch"] = branch_result.stdout.strip()
@@ -734,7 +735,8 @@ Return the complete improved Python code:
                     ["git", "log", "-1", "--format=%H"],
                     cwd=self.project_root,
                     capture_output=True,
-                    text=True
+                    text=True,
+                    check=False
                 )
                 if commit_result.returncode == 0:
                     state["last_commit"] = commit_result.stdout.strip()
@@ -751,7 +753,8 @@ Return the complete improved Python code:
                 ["git", "checkout", "main"],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if switch_result.returncode != 0:
@@ -767,7 +770,8 @@ Return the complete improved Python code:
                 ["git", "branch", "-D", f"evolution-{evolution_name}"],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False
             )
             
             if delete_result.returncode == 0:
