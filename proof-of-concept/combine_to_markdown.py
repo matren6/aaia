@@ -130,7 +130,7 @@ def main():
     python_files = get_python_files(base_path, args.modules)
     markdown_files = get_markdown_files(base_path, args.data)
     
-    all_files = python_files + markdown_files
+    all_files = markdown_files + python_files
     
     if not all_files:
         print("ERROR: No files found!")
