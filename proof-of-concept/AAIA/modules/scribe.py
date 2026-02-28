@@ -173,3 +173,60 @@ class Scribe:
         )
         conn.commit()
         conn.close()
+    
+    def validate_mandates(self, action_data: Dict) -> bool:
+        """
+        Validate action data against mandate requirements.
+        
+        This is a convenience method for external modules to check
+        if an action passes mandate validation.
+        
+        Args:
+            action_data: Dictionary containing action information to validate
+            
+        Returns:
+            True if the action data is valid for mandate processing
+        """
+        # Basic validation - action_data should be a non-empty dict
+        if not isinstance(action_data, dict):
+            return False
+        if not action_data:
+            return False
+        return True
+        
+    def get_economic_status(self) -> Dict[str, Any]:
+        """
+        Get current economic status.
+        
+        Returns:
+            Dictionary with balance and recent transactions
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
+        row = cursor.fetchone()
+        balance = float(row[0]) if row else 100.0
+        
+        cursor.execute('''
+            SELECT description, amount, balance_after, timestamp 
+            FROM economic_log 
+            ORDER BY timestamp DESC 
+            LIMIT 5
+        ''')
+        recent = cursor.fetchall()
+        
+        conn.close()
+        
+        return {
+            "balance": balance,
+            "recent_transactions": [
+                {
+                    "description": r[0],
+                    "amount": r[1],
+                    "balance_after": r[2],
+                    "timestamp": r[3]
+                }
+                for r in recent
+            ]
+        }

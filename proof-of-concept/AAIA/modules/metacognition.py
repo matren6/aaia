@@ -54,10 +54,11 @@ from datetime import datetime, timedelta
 class MetaCognition:
     """Higher-order thinking about system cognition and performance"""
 
-    def __init__(self, scribe, router, diagnosis):
+    def __init__(self, scribe, router, diagnosis, event_bus = None):
         self.scribe = scribe
         self.router = router
         self.diagnosis = diagnosis
+        self.event_bus = event_bus
         self.thought_log = []
         self.performance_history = self.load_performance_history()
 
@@ -79,6 +80,19 @@ class MetaCognition:
                 evolutions_executed INTEGER,
                 insights_generated TEXT,
                 metadata TEXT
+            )
+        ''')
+
+        # Create evolution_history table if it doesn't exist
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS evolution_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                cycle_id TEXT,
+                status TEXT,
+                tasks_completed INTEGER,
+                tasks_failed INTEGER,
+                notes TEXT
             )
         ''')
 

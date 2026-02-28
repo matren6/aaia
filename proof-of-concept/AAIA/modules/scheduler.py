@@ -59,7 +59,7 @@ from modules.evolution_pipeline import EvolutionPipeline
 class AutonomousScheduler:
     """Autonomous task scheduler for self-development and maintenance."""
 
-    def __init__(self, scribe, router, economics, forge, event_bus=None):
+    def __init__(self, scribe, router, economics, forge, container=None, event_bus=None):
         """
         Initialize the autonomous scheduler.
         
@@ -68,13 +68,27 @@ class AutonomousScheduler:
             router: ModelRouter for AI calls
             economics: EconomicManager for budget tracking
             forge: Forge for tool management
+            container: Optional Container for dependency injection
             event_bus: Optional EventBus for publishing events
         """
         self.scribe = scribe
         self.router = router
         self.economics = economics
         self.forge = forge
-        self.event_bus = event_bus
+        
+        # Use event_bus directly, from container, or get from global
+        if event_bus is not None:
+            self.event_bus = event_bus
+        elif container is not None:
+            try:
+                self.event_bus = container.get('EventBus')
+            except Exception:
+                from modules.bus import get_event_bus
+                self.event_bus = get_event_bus()
+        else:
+            from modules.bus import get_event_bus
+            self.event_bus = get_event_bus()
+        
         self.running = False
         self.thread = None
         
@@ -97,14 +111,28 @@ class AutonomousScheduler:
         self.task_queue = []
         self.task_history = []
 
-        # Add evolution pipeline
-        self.diagnosis = SelfDiagnosis(scribe, router, forge)
-        self.modification = SelfModification(scribe, router, forge)
-        self.evolution = EvolutionManager(scribe, router, forge, self.diagnosis, self.modification)
-        self.pipeline = EvolutionPipeline(scribe, router, forge, self.diagnosis, self.modification, self.evolution)
+        # Use container if provided, otherwise create instances directly
+        if container is not None:
+            try:
+                self.diagnosis = container.get('SelfDiagnosis')
+                self.modification = container.get('SelfModification')
+                self.evolution = container.get('EvolutionManager')
+                self.pipeline = container.get('EvolutionPipeline')
+            except Exception:
+                # Fallback to direct instantiation
+                self._init_components_direct()
+        else:
+            self._init_components_direct()
 
         # Register autonomous behaviors
         self.register_default_tasks()
+
+    def _init_components_direct(self):
+        """Initialize components directly (fallback when no container available)"""
+        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
+        self.modification = SelfModification(self.scribe, self.router, self.forge)
+        self.evolution = EvolutionManager(self.scribe, self.router, self.forge, self.diagnosis, self.modification)
+        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge, self.diagnosis, self.modification, self.evolution)
 
     def register_default_tasks(self):
         """Register default autonomous behaviors"""

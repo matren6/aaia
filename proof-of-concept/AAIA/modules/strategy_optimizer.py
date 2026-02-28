@@ -53,8 +53,9 @@ from collections import defaultdict
 class StrategyOptimizer:
     """Optimize evolution strategies based on past performance"""
 
-    def __init__(self, scribe):
+    def __init__(self, scribe, event_bus=None):
         self.scribe = scribe
+        self.event_bus = event_bus
         self.strategy_history = self.load_strategy_history()
 
     def load_strategy_history(self) -> List[Dict]:

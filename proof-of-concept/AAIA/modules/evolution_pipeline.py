@@ -61,13 +61,14 @@ import subprocess
 import sys
 
 class EvolutionPipeline:
-    def __init__(self, scribe, router, forge, diagnosis, modification, evolution):
+    def __init__(self, scribe, router, forge, diagnosis, modification, evolution, event_bus=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
         self.diagnosis = diagnosis
         self.modification = modification
         self.evolution = evolution
+        self.event_bus = event_bus
         self.pipeline_state = "idle"
         self.evolution_log = []
         
@@ -439,17 +440,19 @@ class EvolutionPipeline:
     def test_mandate_checking(self) -> dict:
         """Test that mandate validation works"""
         try:
-            # Try to import and test mandates module
-            from modules.mandates import MandateManager
+            # Import the correct class name
+            from modules.mandates import MandateEnforcer
             
-            # Check if we can access mandates through the router or scribe
-            mandate_test = self.scribe.validate_mandates({
-                "test_action": True
-            }) if hasattr(self.scribe, 'validate_mandates') else True
+            # Create a test instance with scribe
+            test_mandates = MandateEnforcer(self.scribe)
+            
+            # Test mandate checking
+            is_allowed, violations = test_mandates.check_action("test_action")
             
             return {
                 "passed": True,
-                "mandate_validation": "available" if mandate_test else "limited",
+                "mandate_validation": "available",
+                "test_result": {"allowed": is_allowed, "violations": violations},
                 "error": None
             }
         except Exception as e:
@@ -527,7 +530,7 @@ class EvolutionPipeline:
                 pass
                 
         return 0
-        
+
     def rollback_last_evolution(self) -> dict:
         """Attempt to rollback the last evolution cycle"""
         # First check if we have a backup
@@ -541,12 +544,25 @@ class EvolutionPipeline:
             backup_data = json.loads(backup_file.read_text())
             
             # Restore system state if available
+            restore_result = {"status": "skipped"}
             if "system_state" in backup_data:
-                # This would require the modification module to handle restoration
-                restore_result = self.modification.restore_from_backup(
-                    backup_data["system_state"]
-                ) if hasattr(self.modification, 'restore_from_backup') else {"status": "skipped"}
-                
+                # Use the correct method name and signature
+                if hasattr(self.modification, 'restore_from_backup'):
+                    restore_result = self.modification.restore_from_backup(
+                        backup_data["system_state"]
+                    )
+                elif hasattr(self.modification, 'restore_backup'):
+                    # Try the file-based restoration
+                    modules_to_restore = backup_data.get("modules_modified", [])
+                    restored = []
+                    for module_name in modules_to_restore:
+                        if self.modification.restore_backup(module_name):
+                            restored.append(module_name)
+                    restore_result = {
+                        "status": "partial" if len(restored) < len(modules_to_restore) else "completed",
+                        "modules_restored": restored
+                    }
+            
             self.scribe.log_action(
                 "Evolution rolled back",
                 f"Restored to state from {backup_data.get('timestamp', 'unknown')}",
@@ -556,12 +572,12 @@ class EvolutionPipeline:
             return {
                 "status": "completed",
                 "backup_timestamp": backup_data.get("timestamp"),
-                "restore_result": restore_result if 'restore_result' in locals() else {"status": "manual_restore_required"}
+                "restore_result": restore_result
             }
             
         except Exception as e:
             return {"status": "failed", "error": str(e)}
-            
+
     def export_evolution_report(self, format: str = "json") -> dict:
         """Export evolution report in specified format"""
         evolution_file = Path("data") / "evolution_knowledge.json"

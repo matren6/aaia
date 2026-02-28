@@ -1,4 +1,4 @@
-# dialogue.py
+# modules/dialogue.py
 """
 Dialogue Manager Module - Structured Communication Protocol
 
@@ -38,7 +38,7 @@ DEPENDENCIES: Scribe, Router
 OUTPUTS: Tuple of (understanding, risks, alternatives)
 """
 
-from typing import Optional
+from typing import Optional, Tuple, List
 from .scribe import Scribe
 from .router import ModelRouter
 
@@ -47,8 +47,12 @@ class DialogueManager:
         self.scribe = scribe
         self.router = router
         
-    def structured_argument(self, master_command: str, context: str = "") -> str:
-        """Implement structured argument protocol"""
+    def structured_argument(self, master_command: str, context: str = "") -> Tuple[str, List[str], List[str]]:
+        """Implement structured argument protocol
+        
+        Returns:
+            Tuple of (understanding: str, risks: List[str], alternatives: List[str])
+        """
         
         # Log understanding phase
         self.scribe.log_action(

@@ -58,7 +58,7 @@ class EvolutionOrchestrator:
 
     def __init__(self, scribe, router, forge, diagnosis, modification,
                  metacognition, capability_discovery, intent_predictor,
-                 environment_explorer, strategy_optimizer=None):
+                 environment_explorer, strategy_optimizer=None, event_bus=None):
         
         self.scribe = scribe
         self.router = router
@@ -70,6 +70,7 @@ class EvolutionOrchestrator:
         self.intent_predictor = intent_predictor
         self.environment_explorer = environment_explorer
         self.strategy_optimizer = strategy_optimizer
+        self.event_bus = event_bus
         
         self.evolution_history = []
         self.current_evolution = None

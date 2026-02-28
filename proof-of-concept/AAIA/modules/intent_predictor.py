@@ -52,9 +52,10 @@ from collections import defaultdict
 class IntentPredictor:
     """Predict master's needs before commands are given"""
 
-    def __init__(self, scribe, router):
+    def __init__(self, scribe, router, event_bus = None):
         self.scribe = scribe
         self.router = router
+        self.event_bus = event_bus
         self.master_model = self.load_master_model()
         self.context_window = 10  # Number of recent commands to consider
 

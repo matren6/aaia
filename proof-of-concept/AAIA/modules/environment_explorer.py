@@ -62,9 +62,10 @@ from datetime import datetime
 class EnvironmentExplorer:
     """Explore and map the AI's operational environment"""
 
-    def __init__(self, scribe, router):
+    def __init__(self, scribe, router, event_bus = None):
         self.scribe = scribe
         self.router = router
+        self.event_bus = event_bus
         self.environment_map = {}
         self.exploration_cache = None
         self.last_exploration = None

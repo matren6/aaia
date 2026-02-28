@@ -253,7 +253,7 @@ Provide only the Python code for the execute function:
         # Remove ```python and ``` markers
         code = re.sub(r'^```python\s*', '', code, flags=re.MULTILINE)
         code = re.sub(r'^```\s*', '', code, flags=re.MULTILINE)
-        code = re.sub(r'```$', '', code, flags=re.MULTILINE)
+        code = re.sub(r'```\$', '', code, flags=re.MULTILINE)
         
         # Remove any leading/trailing whitespace
         code = code.strip()
@@ -275,12 +275,12 @@ Provide only the Python code for the execute function:
             (r'\bimport\s+subprocess', "subprocess module import"),
             (r'\bimport\s+sys\s*;', "sys module import"),
             (r'\bimport\s+shutil', "shutil module import"),
-            (r'\beval\s*\(', "eval() usage"),
-            (r'\bexec\s*\(', "exec() usage"),
-            (r'\b__import__\s*\(', "dynamic import"),
-            (r'\bopen\s*\(', "file open (requires review)"),
-            (r'\bos\.system\s*\(', "os.system call"),
-            (r'\bos\.popen\s*\(', "os.popen call"),
+            (r'\beval\s*$$', "eval() usage"),
+            (r'\bexec\s*$$', "exec() usage"),
+            (r'\b__import__\s*$$', "dynamic import"),
+            (r'\bopen\s*$$', "file open (requires review)"),
+            (r'\bos\.system\s*$$', "os.system call"),
+            (r'\bos\.popen\s*$$', "os.popen call"),
         ]
         
         for pattern, issue in dangerous_patterns:

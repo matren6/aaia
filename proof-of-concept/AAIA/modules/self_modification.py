@@ -48,18 +48,22 @@ import inspect
 import textwrap
 import os
 import shutil
+import importlib
+import sqlite3
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 
 class SelfModification:
     """Safe self-modification with backup and testing."""
 
-    def __init__(self, scribe, router, forge):
+    def __init__(self, scribe, router, forge, event_bus=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
+        self.event_bus = event_bus
         self.backup_dir = Path("backups")
         self.backup_dir.mkdir(exist_ok=True)
 
@@ -197,6 +201,11 @@ Response format (one per line):
             # Don't restore backup if we didn't make changes
             return False
 
+    def _generate_function(self, spec: Dict) -> str:
+        """Generate a function from a specification"""
+        # Placeholder for function generation
+        return f"def {spec.get('name', 'new_function')}():\n    pass\n"
+
     def create_backup(self, module_name: str) -> Optional[str]:
         """Create backup of module before modification"""
         try:
@@ -220,9 +229,41 @@ Response format (one per line):
             print(f"Backup failed: {e}")
             return None
 
-    def restore_backup(self, module_name: str) -> bool:
-        """Restore module from latest backup"""
+    def restore_backup(self, module_name: str, backup_data: Optional[Dict] = None) -> bool:
+        """Restore module from latest backup or from backup data
+        
+        Args:
+            module_name: Name of the module to restore
+            backup_data: Optional backup data dict (for evolution pipeline compatibility)
+                         If provided, should contain module source code
+        """
         try:
+            # If backup_data provided, use it for restoration
+            if backup_data is not None and isinstance(backup_data, dict):
+                # Find the module path
+                module_paths = [
+                    Path(f"modules/{module_name}.py"),
+                    Path(f"AAIA/modules/{module_name}.py")
+                ]
+                
+                module_path = None
+                for p in module_paths:
+                    if p.exists() or p.parent.exists():
+                        module_path = p
+                        break
+                
+                if not module_path:
+                    return False
+                
+                # If backup_data contains source code, write it
+                if "source_code" in backup_data:
+                    with open(module_path, 'w') as f:
+                        f.write(backup_data["source_code"])
+                    return True
+                
+                # Otherwise, fall through to file-based restoration
+            
+            # File-based restoration
             backups = sorted(self.backup_dir.glob(f"{module_name}_*.py.backup"))
             if backups:
                 latest_backup = backups[-1]
@@ -404,6 +445,38 @@ Return the complete improved Python code:
         conn.close()
         return history
 
-
-# Need importlib for the module
-import importlib
+    def restore_from_backup(self, backup_data: Dict) -> Dict:
+        """Restore system state from backup data (for evolution pipeline).
+        
+        Args:
+            backup_data: Dictionary containing backup information including
+                         module names and optionally source code
+            
+        Returns:
+            Dictionary with restoration status
+        """
+        results = {
+            "status": "completed",
+            "modules_restored": [],
+            "errors": []
+        }
+        
+        if not backup_data:
+            results["status"] = "failed"
+            results["errors"].append("No backup data provided")
+            return results
+        
+        # If backup_data contains specific modules to restore
+        if "modules" in backup_data:
+            for module_name in backup_data["modules"]:
+                if self.restore_backup(module_name, backup_data.get(module_name)):
+                    results["modules_restored"].append(module_name)
+                else:
+                    results["errors"].append(f"Failed to restore {module_name}")
+        
+        # General restoration from file-based backups
+        elif "modules_restored" not in results or not results["modules_restored"]:
+            # Just mark as requiring manual restoration
+            results["status"] = "manual_restore_required"
+        
+        return results

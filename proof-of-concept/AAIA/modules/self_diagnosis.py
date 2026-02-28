@@ -47,17 +47,28 @@ import ast
 import importlib
 import inspect
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime
 
 
 class SelfDiagnosis:
     """System self-diagnosis and assessment module."""
 
-    def __init__(self, scribe, router, forge):
+    def __init__(self, scribe, router, forge, goals=None, event_bus=None):
+        """Initialize SelfDiagnosis.
+        
+        Args:
+            scribe: Scribe instance for logging
+            router: ModelRouter for AI calls
+            forge: Forge instance for tool management
+            goals: Optional GoalSystem instance for capability assessment
+            event_bus: Optional EventBus for events
+        """
         self.scribe = scribe
         self.router = router
         self.forge = forge
+        self.goals = goals
+        self.event_bus = event_bus
         self.diagnosis_interval = 3600  # 1 hour in seconds
 
     def perform_full_diagnosis(self) -> Dict:
@@ -163,12 +174,10 @@ class SelfDiagnosis:
         # Check available tools
         tools = self.forge.list_tools()
         
-        # Check scheduler tasks
-        from modules.scheduler import AutonomousScheduler
-        # We'll need to pass scheduler or check differently
-        
-        # Check goals
-        goals = self.goals.get_active_goals() if hasattr(self, 'goals') else []
+        # Check goals if available
+        goals = []
+        if self.goals is not None and hasattr(self.goals, 'get_active_goals'):
+            goals = self.goals.get_active_goals()
 
         return {
             "tools_count": len(tools),
@@ -201,7 +210,7 @@ class SelfDiagnosis:
             memory = psutil.virtual_memory()
             if memory.percent > 85:
                 bottlenecks.append(f"High memory usage: {memory.percent}%")
-        except Exception:
+        except ImportError:
             pass
 
         # Check disk usage
@@ -210,6 +219,8 @@ class SelfDiagnosis:
             disk = psutil.disk_usage('/')
             if disk.percent > 90:
                 bottlenecks.append(f"Low disk space: {disk.percent}%")
+        except ImportError:
+            pass
         except Exception:
             pass
 
@@ -469,3 +480,12 @@ Timestamp: {diagnosis['timestamp']}
                 summary += f"  [{action['priority'].upper()}] {action['action']}\n"
         
         return summary
+
+    def get_system_snapshot(self) -> Dict:
+        """Get a snapshot of current system state for backup purposes"""
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "performance": self.assess_performance(),
+            "capabilities": self.assess_capabilities(),
+            "bottlenecks": self.identify_bottlenecks()
+        }

@@ -223,3 +223,73 @@ def reset_config():
     """Reset the global configuration to defaults."""
     global _default_config
     _default_config = None
+
+
+def validate_system_config(config: SystemConfig) -> bool:
+    """
+    Validate all configuration values before system start.
+    
+    This function performs comprehensive validation of the entire
+    system configuration, ensuring all values are within acceptable
+    ranges before the system starts.
+    
+    Args:
+        config: SystemConfig instance to validate
+        
+    Returns:
+        True if validation passes, False otherwise
+    """
+    errors = []
+    
+    try:
+        # Validate database config
+        config.database.__post_init__()
+    except ValueError as e:
+        errors.append(f"Database config: {e}")
+    
+    try:
+        # Validate scheduler config
+        config.scheduler.__post_init__()
+    except ValueError as e:
+        errors.append(f"Scheduler config: {e}")
+    
+    try:
+        # Validate LLM config
+        config.llm.__post_init__()
+    except ValueError as e:
+        errors.append(f"LLM config: {e}")
+    
+    try:
+        # Validate economics config
+        config.economics.__post_init__()
+    except ValueError as e:
+        errors.append(f"Economics config: {e}")
+    
+    try:
+        # Validate evolution config
+        config.evolution.__post_init__()
+    except ValueError as e:
+        errors.append(f"Evolution config: {e}")
+    
+    # Validate tools config (directory paths should exist or be creatable)
+    tools_path = Path(config.tools.tools_dir)
+    if not tools_path.exists():
+        try:
+            tools_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            errors.append(f"Tools directory: Cannot create - {e}")
+    
+    backup_path = Path(config.tools.backup_dir)
+    if not backup_path.exists():
+        try:
+            backup_path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            errors.append(f"Backup directory: Cannot create - {e}")
+    
+    if errors:
+        print("Configuration validation errors:")
+        for error in errors:
+            print(f"  - {error}")
+        return False
+    
+    return True

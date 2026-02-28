@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional
 
 # New architectural components
-from modules.settings import get_config, SystemConfig
+from modules.settings import get_config, SystemConfig, validate_system_config
 from modules.bus import EventBus, EventType, Event, get_event_bus
 from modules.container import Container, get_container
 
@@ -36,7 +36,7 @@ from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
 
 class Arbiter:
-    def __init__(self, use_container: bool = False):
+    def __init__(self):
         """
         Initialize the Arbiter and all modules.
         
@@ -45,6 +45,10 @@ class Arbiter:
         """
         # Load configuration
         self.config = get_config()
+        
+        # Validate configuration before starting
+        if not validate_system_config(self.config):
+            raise ValueError("Configuration validation failed. Please fix the errors above.")
         
         # Initialize event bus
         self.event_bus = get_event_bus()
@@ -56,12 +60,7 @@ class Arbiter:
             source='Arbiter'
         ))
         
-        if use_container:
-            # Use dependency injection container
-            self._init_with_container()
-        else:
-            # Traditional initialization (backward compatible)
-            self._init_traditional()
+        self._init_container()
         
         # Initialize hierarchy
         self.init_hierarchy()
@@ -73,7 +72,7 @@ class Arbiter:
             source='Arbiter'
         ))
         
-    def _init_with_container(self):
+    def _init_container(self):
         """Initialize using dependency injection container."""
         container = get_container()
         
@@ -105,42 +104,6 @@ class Arbiter:
         self.environment_explorer = modules.get('EnvironmentExplorer')
         self.strategy_optimizer = modules.get('StrategyOptimizer')
         self.orchestrator = modules.get('EvolutionOrchestrator')
-        
-    def _init_traditional(self):
-        """Traditional initialization (backward compatible)."""
-        # Core modules - pass config path from settings
-        db_path = self.config.database.path
-        self.scribe = Scribe(db_path)
-        self.economics = EconomicManager(self.scribe)
-        self.mandates = MandateEnforcer(self.scribe)
-        self.router = ModelRouter(self.economics)
-        self.dialogue = DialogueManager(self.scribe, self.router)
-        self.forge = Forge(self.router, self.scribe)
-        
-        # Autonomous modules
-        self.scheduler = AutonomousScheduler(
-            self.scribe, self.router, self.economics, self.forge
-        )
-        self.goals = GoalSystem(self.scribe, self.router, self.economics)
-        self.hierarchy_manager = HierarchyManager(self.scribe, self.economics)
-        
-        # Self-development modules
-        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
-        self.modification = SelfModification(self.scribe, self.router, self.forge)
-        self.evolution = EvolutionManager(self.scribe, self.router, self.forge, self.diagnosis, self.modification)
-        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge, self.diagnosis, self.modification, self.evolution)
-        
-        # Advanced self-development modules
-        self.metacognition = MetaCognition(self.scribe, self.router, self.diagnosis)
-        self.capability_discovery = CapabilityDiscovery(self.scribe, self.router, self.forge)
-        self.intent_predictor = IntentPredictor(self.scribe, self.router)
-        self.environment_explorer = EnvironmentExplorer(self.scribe, self.router)
-        self.strategy_optimizer = StrategyOptimizer(self.scribe)
-        self.orchestrator = EvolutionOrchestrator(
-            self.scribe, self.router, self.forge, self.diagnosis,
-            self.modification, self.metacognition, self.capability_discovery,
-            self.intent_predictor, self.environment_explorer, self.strategy_optimizer
-        )
         
     def init_hierarchy(self):
         """Initialize hierarchy of needs"""
@@ -781,7 +744,7 @@ Evolution Commands:
         FIX: [specific code change]
         """
         
-        model_name, _ = self.router.route_request("coding", "high")
+        model_name, model_info = self.router.route_request("coding", "high")
         suggestions = self.router.call_model(
             model_name,
             prompt,

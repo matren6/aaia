@@ -73,7 +73,7 @@ class SystemBuilder:
     
     def __init__(self, config: Optional[SystemConfig] = None):
         self._config = config or get_config()
-        self._event_bus = EventBus(enable_logging=False)
+        self._event_bus = EventBus(enable_logging=False)  # Create instance
         self._container = Container()
         self._modules = {}
         self._initialized = False
@@ -102,6 +102,9 @@ class SystemBuilder:
                 
             # Ensure config directories exist
             self._config.ensure_directories()
+            
+            # Register EventBus first as it's needed by many modules
+            self._container.register_instance('EventBus', self._event_bus)
             
             # Register core services in container
             self._register_core_services()
@@ -138,7 +141,7 @@ class SystemBuilder:
             
         # Economic Manager
         self._container.register_factory('EconomicManager',
-            lambda c: EconomicManager(c.get('Scribe')),
+            lambda c: EconomicManager(c.get('Scribe'), c.get('EventBus')),
             singleton=True)
             
         # Mandate Enforcer
@@ -148,7 +151,7 @@ class SystemBuilder:
             
         # Model Router
         self._container.register_factory('ModelRouter',
-            lambda c: ModelRouter(c.get('EconomicManager')),
+            lambda c: ModelRouter(c.get('EconomicManager'), c.get('EventBus')),
             singleton=True)
             
         # Dialogue Manager
@@ -158,9 +161,9 @@ class SystemBuilder:
             
         # Forge (tool creation)
         self._container.register_factory('Forge',
-            lambda c: Forge(c.get('ModelRouter'), c.get('Scribe')),
+            lambda c: Forge(c.get('ModelRouter'), c.get('Scribe'), event_bus=c.get('EventBus')),
             singleton=True)
-            
+    
     def _register_autonomous_services(self):
         """Register autonomous module services."""
         # Scheduler
@@ -169,7 +172,9 @@ class SystemBuilder:
                 c.get('Scribe'),
                 c.get('ModelRouter'),
                 c.get('EconomicManager'),
-                c.get('Forge')
+                c.get('Forge'),
+                container=c,  # Pass container to avoid circular deps
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -197,7 +202,9 @@ class SystemBuilder:
             lambda c: SelfDiagnosis(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('Forge')
+                c.get('Forge'),
+                goals=c.get('GoalSystem'),  # Pass goals to avoid undefined attribute
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -206,7 +213,8 @@ class SystemBuilder:
             lambda c: SelfModification(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('Forge')
+                c.get('Forge'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -217,7 +225,8 @@ class SystemBuilder:
                 c.get('ModelRouter'),
                 c.get('Forge'),
                 c.get('SelfDiagnosis'),
-                c.get('SelfModification')
+                c.get('SelfModification'),
+                c.get('EventBus')
             ),
             singleton=True)
             
@@ -238,7 +247,8 @@ class SystemBuilder:
             lambda c: MetaCognition(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('SelfDiagnosis')
+                c.get('SelfDiagnosis'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -247,7 +257,8 @@ class SystemBuilder:
             lambda c: CapabilityDiscovery(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('Forge')
+                c.get('Forge'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -255,7 +266,8 @@ class SystemBuilder:
         self._container.register_factory('IntentPredictor',
             lambda c: IntentPredictor(
                 c.get('Scribe'),
-                c.get('ModelRouter')
+                c.get('ModelRouter'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -263,14 +275,16 @@ class SystemBuilder:
         self._container.register_factory('EnvironmentExplorer',
             lambda c: EnvironmentExplorer(
                 c.get('Scribe'),
-                c.get('ModelRouter')
+                c.get('ModelRouter'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
         # Strategy Optimizer
         self._container.register_factory('StrategyOptimizer',
             lambda c: StrategyOptimizer(
-                c.get('Scribe')
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -286,7 +300,8 @@ class SystemBuilder:
                 c.get('CapabilityDiscovery'),
                 c.get('IntentPredictor'),
                 c.get('EnvironmentExplorer'),
-                c.get('StrategyOptimizer')
+                c.get('StrategyOptimizer'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             

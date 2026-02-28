@@ -52,10 +52,11 @@ from datetime import datetime, timedelta
 class CapabilityDiscovery:
     """Discover new capabilities the system could develop"""
 
-    def __init__(self, scribe, router, forge):
+    def __init__(self, scribe, router, forge, event_bus=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
+        self.event_bus = event_bus
         self.known_capabilities = self.load_capability_knowledge()
 
     def load_capability_knowledge(self) -> Dict:
