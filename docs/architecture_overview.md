@@ -42,12 +42,12 @@ autonomous-ai-agent/
 │   │   └── setup.py               # Your system initialization
 │   ├── tools/               # Your generated tools directory
 │   ├── data/
-│   │   ├── scribe.db        # Your SQLite database
-│   │   ├── core_directives.md
-│   │   └── symbiotic_partner_charter.md
 │   └── backups/             # Your backup directory
 ├── scripts/                 # Utility scripts
 ├── docs/                    # Documentation (if present)
+│   ├── architecture_overview.md
+│   ├── core_directives.md
+│   └── symbiotic_partner_charter.md
 └── ideas.md                 # Development notes
 ```
 
