@@ -45,7 +45,6 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
-
 class EvolutionManager:
     """Manages AI self-evolution cycles and task execution."""
 

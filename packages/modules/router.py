@@ -59,7 +59,7 @@ class ModelRouter:
             # Use defaults
             class DefaultLLMConfig:
                 provider = "ollama"
-                model = "llama3.2"
+                model = "phi3"
                 base_url = "http://localhost:11434"
                 timeout = 120
                 max_retries = 3
@@ -67,21 +67,21 @@ class ModelRouter:
         
         # Load model configurations from config or use defaults
         self.available_models = {
-            "local:llama2": {
-                "capabilities": ["reasoning", "general"],
-                "cost_per_token": Decimal('0.000001'),
-                "max_tokens": 4096
-            },
-            "local:mistral": {
-                "capabilities": ["reasoning", "coding"],
-                "cost_per_token": Decimal('0.000001'),
-                "max_tokens": 8192
-            },
-            "local:codellama": {
-                "capabilities": ["coding"],
-                "cost_per_token": Decimal('0.000001'),
-                "max_tokens": 4096
-            },
+            #"local:llama2": {
+            #    "capabilities": ["reasoning", "general"],
+            #    "cost_per_token": Decimal('0.000001'),
+            #    "max_tokens": 4096
+            #},
+            #"local:mistral": {
+            #    "capabilities": ["reasoning", "coding"],
+            #    "cost_per_token": Decimal('0.000001'),
+            #    "max_tokens": 8192
+            #},
+            #"local:codellama": {
+            #    "capabilities": ["coding"],
+            #    "cost_per_token": Decimal('0.000001'),
+            #    "max_tokens": 4096
+            #},
             # Add configured model
             f"local:{self.config.model}": {
                 "capabilities": ["reasoning", "general", "coding"],

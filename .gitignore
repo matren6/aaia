@@ -1,5 +1,21 @@
-__pycache__
+# Nix build artifacts
+result/
+.direnv/
+
+# Python
+__pycache__/
 *.pyc
-*.db
-codebase.md
+*.pyo
+*.pyd
+.Python
+*.so
+
+# AAIA data
+data/
+tools/
+backups/
+
+# IDE
+.vscode/
+.idea/
 

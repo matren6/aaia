@@ -8,7 +8,8 @@ from .scheduler import AutonomousScheduler
 from .goals import GoalSystem
 from .hierarchy_manager import HierarchyManager
 from .self_diagnosis import SelfDiagnosis
-from .self_modification import SelfModification
+#from .self_modification import SelfModification
+from .nix_aware_self_modification import NixAwareSelfModification
 from .evolution import EvolutionManager
 from .metacognition import MetaCognition
 from .capability_discovery import CapabilityDiscovery

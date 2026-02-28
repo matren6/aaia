@@ -1,5 +1,10 @@
 # main.py
 import sys
+from pathlib import Path
+
+# Add the packages directory to Python path
+sys.path.insert(0, str(Path(__file__).parent))
+
 import time
 import sqlite3
 from datetime import datetime
@@ -43,8 +48,12 @@ class Arbiter:
         Args:
             use_container: If True, use dependency injection container
         """
+        data_dir = Path.home() / ".local/share/aaia"
+        data_dir.mkdir(parents=True, exist_ok=True)
+
         # Load configuration
         self.config = get_config()
+        self.config.database.path = str(data_dir / "scribe.db")
         
         # Validate configuration before starting
         if not validate_system_config(self.config):

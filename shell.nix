@@ -1,0 +1,1 @@
+(import ./flake.nix).outputs.devShells.${builtins.currentSystem}.default

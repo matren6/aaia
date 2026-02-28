@@ -52,7 +52,8 @@ from modules.scheduler import AutonomousScheduler
 from modules.goals import GoalSystem
 from modules.hierarchy_manager import HierarchyManager
 from modules.self_diagnosis import SelfDiagnosis
-from modules.self_modification import SelfModification
+#from modules.self_modification import SelfModification
+from modules.nix_aware_self_modification import NixAwareSelfModification
 from modules.evolution import EvolutionManager
 from modules.metacognition import MetaCognition
 from modules.capability_discovery import CapabilityDiscovery
@@ -210,7 +211,7 @@ class SystemBuilder:
             
         # Self Modification
         self._container.register_factory('SelfModification',
-            lambda c: SelfModification(
+            lambda c: NixAwareSelfModification(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
                 c.get('Forge'),
