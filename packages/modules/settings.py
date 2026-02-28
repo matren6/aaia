@@ -50,7 +50,7 @@ class SchedulerConfig:
 class LLMConfig:
     """LLM provider configuration."""
     provider: str = "ollama"
-    model: str = "llama3.2"
+    model: str = "phi3"
     base_url: str = "http://localhost:11434"
     timeout: int = 120
     max_retries: int = 3
