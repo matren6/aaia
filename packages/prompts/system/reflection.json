@@ -1,0 +1,19 @@
+{
+  "name": "system_reflection",
+  "description": "Reflect on system behavior and interactions to identify improvements",
+  "template": "Analyze the following system interactions and behavior:\n\nRecent Thoughts:\n{thoughts}\n\nIdentify patterns, mistakes, and areas for improvement.\n\nResponse format:\n- Pattern: [observed pattern]\n- Improvement: [suggested improvement]\n- Lesson: [lesson learned]",
+  "parameters": [
+    {"name": "thoughts", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a reflective AI analyzing your own behavior and interactions to improve.",
+  "model_preferences": {
+    "task_type": "reasoning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

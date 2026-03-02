@@ -92,6 +92,14 @@ class AutonomousScheduler:
         self.running = False
         self.thread = None
         
+        # Initialize PromptManager
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            self.prompt_manager = get_prompt_manager()
+        except ImportError:
+            pass
+        
         # Load scheduler config
         try:
             from modules.settings import get_config

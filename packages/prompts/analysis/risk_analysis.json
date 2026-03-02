@@ -1,0 +1,20 @@
+{
+  "name": "command_risk_analysis",
+  "description": "Analyze commands for risks and better approaches",
+  "template": "Analyze this command for risks and suggest better approaches:\n\nCommand: {command}\nContext: {context}\n\nIdentify:\n1. Potential risks\n2. Safer alternatives\n3. Better approaches\n\nResponse format:\nRISKS: [list of risks]\nALTERNATIVES: [safer options]\nBETTER_APPROACH: [recommended approach]",
+  "parameters": [
+    {"name": "command", "type": "string", "required": true},
+    {"name": "context", "type": "string", "required": false}
+  ],
+  "system_prompt": "You are a critical thinking partner analyzing commands for risks and better approaches.",
+  "model_preferences": {
+    "task_type": "reasoning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

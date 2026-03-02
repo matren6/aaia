@@ -1,0 +1,20 @@
+{
+  "name": "goal_suggestion",
+  "description": "Suggest practical, valuable goals for the AI system",
+  "template": "Analyze the current system state and suggest practical, valuable goals:\n\nSystem State:\n{system_state}\n\nRecent Performance:\n{performance}\n\nSuggest 3-5 goals that would improve the system.\n\nResponse format (one per line):\n- [goal description]",
+  "parameters": [
+    {"name": "system_state", "type": "string", "required": true},
+    {"name": "performance", "type": "string", "required": false}
+  ],
+  "system_prompt": "You are a strategic planner. Suggest practical, valuable goals.",
+  "model_preferences": {
+    "task_type": "planning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

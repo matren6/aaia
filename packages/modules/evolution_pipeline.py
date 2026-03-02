@@ -72,6 +72,17 @@ class EvolutionPipeline:
         self.pipeline_state = "idle"
         self.evolution_log = []
         
+        # Initialize PromptOptimizer if available
+        self.prompt_optimizer = None
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            from modules.prompt_optimizer import PromptOptimizer
+            self.prompt_manager = get_prompt_manager()
+            self.prompt_optimizer = PromptOptimizer(self.prompt_manager, self.router, self.scribe)
+        except ImportError as e:
+            print(f"Warning: Prompt optimization not available: {e}")
+        
     def run_autonomous_evolution(self):
         """Run complete evolution pipeline autonomously"""
         self.pipeline_state = "running"
@@ -120,6 +131,12 @@ class EvolutionPipeline:
             # 4. Testing Phase
             print("Phase 4: Testing Changes...")
             test_results = self.test_evolved_system()
+            
+            # 4b. Prompt Optimization Phase (if available)
+            print("Phase 4b: Prompt Optimization...")
+            prompt_opt_results = self.optimize_prompts()
+            if prompt_opt_results.get("status") == "completed":
+                print(f"  Optimized {prompt_opt_results.get('prompts_optimized', 0)} prompts")
             
             # 5. Learning Phase
             print("Phase 5: Learning from Results...")
@@ -689,3 +706,202 @@ Recent Lessons:
             "prerequisites": prerequisites,
             "missing": [k for k, v in prerequisites.items() if not v]
         }
+    
+    def optimize_prompts(self) -> dict:
+        """Optimize system prompts as part of evolution.
+        
+        This method:
+        1. Collects prompt performance metrics
+        2. Identifies prompts that need optimization
+        3. Creates test versions of underperforming prompts
+        4. A/B tests the new prompts
+        5. Replaces original prompts if tests pass
+        
+        Returns:
+            Dict with optimization results
+        """
+        if not self.prompt_optimizer or not self.prompt_manager:
+            return {"status": "skipped", "reason": "prompt_optimizer_not_available"}
+        
+        self.scribe.log_action(
+            "Starting prompt optimization",
+            "Analyzing prompt performance",
+            "prompt_optimization_started"
+        )
+        
+        try:
+            # Get prompt performance metrics
+            prompt_metrics = self._collect_prompt_metrics()
+            
+            if not prompt_metrics:
+                # No metrics yet - initialize with default values
+                prompts = self.prompt_manager.list_prompts()
+                prompt_metrics = {
+                    p["name"]: {
+                        "success_rate": 0.8,  # Default assumed success rate
+                        "avg_quality": 4.0,   # Default assumed quality
+                        "total_uses": 0
+                    }
+                    for p in prompts
+                }
+            
+            # Identify prompts that need optimization
+            prompts_to_optimize = [
+                name for name, metrics in prompt_metrics.items()
+                if metrics.get("success_rate", 1.0) < 0.7 or metrics.get("avg_quality", 5.0) < 3.0
+            ]
+            
+            if not prompts_to_optimize:
+                self.scribe.log_action(
+                    "Prompt optimization skipped",
+                    "All prompts performing well",
+                    "prompt_optimization_skipped"
+                )
+                return {"status": "skipped", "reason": "no_prompts_need_optimization"}
+            
+            self.scribe.log_action(
+                "Found prompts to optimize",
+                f"Prompts: {prompts_to_optimize}",
+                "prompt_optimization"
+            )
+            
+            # Create test versions of prompts
+            test_prompts = {}
+            for prompt_name in prompts_to_optimize[:3]:  # Limit to 3 at a time
+                try:
+                    performance_data = prompt_metrics.get(prompt_name, {
+                        "issues": ["Low success rate", "Could be more specific"],
+                        "success_criteria": "Clear, actionable output"
+                    })
+                    test_name = self.prompt_optimizer.optimize_prompt(
+                        prompt_name, 
+                        performance_data
+                    )
+                    test_prompts[prompt_name] = test_name
+                except Exception as e:
+                    self.scribe.log_action(
+                        f"Failed to optimize prompt: {prompt_name}",
+                        f"Error: {str(e)}",
+                        "error"
+                    )
+            
+            # A/B test the new prompts
+            optimized_count = 0
+            for original_name, test_name in test_prompts.items():
+                try:
+                    test_cases = self._generate_test_cases_for_prompt(original_name)
+                    if not test_cases:
+                        continue
+                        
+                    results = self.prompt_optimizer.a_b_test_prompt(
+                        original_name, 
+                        test_name, 
+                        test_cases
+                    )
+                    
+                    if results.get("winner") == "test":
+                        # Replace the original prompt
+                        test_prompt_data = self.prompt_manager.get_prompt_raw(test_name)
+                        self.prompt_manager.update_prompt(
+                            original_name,
+                            {"template": test_prompt_data.get("template", "")}
+                        )
+                        
+                        self.scribe.log_action(
+                            f"Optimized prompt: {original_name}",
+                            f"Replaced with test version - success rate: {results.get('test_success_rate', 0):.2f}",
+                            "prompt_optimized"
+                        )
+                        optimized_count += 1
+                    
+                    # Clean up test prompt
+                    try:
+                        self.prompt_manager.delete_prompt(test_name)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    self.scribe.log_action(
+                        f"A/B test failed for {original_name}",
+                        f"Error: {str(e)}",
+                        "error"
+                    )
+            
+            return {
+                "status": "completed",
+                "prompts_analyzed": len(prompt_metrics),
+                "prompts_optimized": optimized_count,
+                "prompts_tested": len(test_prompts)
+            }
+            
+        except Exception as e:
+            self.scribe.log_action(
+                "Prompt optimization failed",
+                f"Error: {str(e)}",
+                "error"
+            )
+            return {"status": "failed", "error": str(e)}
+    
+    def _collect_prompt_metrics(self) -> dict:
+        """Collect performance metrics for all prompts.
+        
+        Returns:
+            Dict mapping prompt names to metrics
+        """
+        metrics = {}
+        
+        # Try to load from stored metrics file
+        metrics_file = Path("data") / "prompt_metrics.json"
+        if metrics_file.exists():
+            try:
+                metrics = json.loads(metrics_file.read_text())
+            except:
+                pass
+        
+        # Get performance from optimizer if available
+        if self.prompt_optimizer:
+            prompts = self.prompt_manager.list_prompts()
+            for prompt in prompts:
+                name = prompt["name"]
+                if name not in metrics:
+                    perf = self.prompt_optimizer.get_prompt_performance(name)
+                    if perf.get("total_uses", 0) > 0:
+                        metrics[name] = perf
+        
+        return metrics
+    
+    def _generate_test_cases_for_prompt(self, prompt_name: str) -> list:
+        """Generate test cases for a specific prompt.
+        
+        Args:
+            prompt_name: Name of the prompt to test
+            
+        Returns:
+            List of test case dicts
+        """
+        # Define test cases based on prompt type
+        test_case_templates = {
+            "improvement_opportunity": [
+                {"params": {"action": "create tool", "frequency": 10}},
+                {"params": {"action": "analyze code", "frequency": 5}},
+                {"params": {"action": "run diagnosis", "frequency": 3}},
+            ],
+            "code_improvement_analysis": [
+                {"params": {"module_name": "scribe", "lines_of_code": 100, "function_count": 5, "complex_functions": ["log_action"]}},
+                {"params": {"module_name": "router", "lines_of_code": 200, "function_count": 10, "complex_functions": ["route_request"]}},
+            ],
+            "prompt_optimization": [
+                {"params": {"current_prompt": "Test prompt", "performance_issues": ["unclear"], "success_criteria": "be clear"}},
+            ],
+            "diagnosis_improvement_plan": [
+                {"params": {"bottlenecks": ["memory"], "opportunities": ["caching"], "performance": {"error_rate": 5}}},
+            ],
+            "system_reflection": [
+                {"params": {"recent_actions": ["create tool", "run diagnosis"], "performance": {"success_rate": 0.8}}},
+            ],
+        }
+        
+        # Return test cases for the specific prompt or generic ones
+        return test_case_templates.get(prompt_name, [
+            {"params": {"input": "test input", "expected": "test expected"}}
+        ])

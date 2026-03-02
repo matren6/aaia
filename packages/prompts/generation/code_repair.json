@@ -1,0 +1,20 @@
+{
+  "name": "code_repair",
+  "description": "Fix broken or problematic Python code",
+  "template": "Fix the following Python code that has errors:\n\nError: {error_message}\n\nProblematic Code:\n{code}\n\nProvide specific, actionable fixes. Return only the corrected code, no markdown or explanations.",
+  "parameters": [
+    {"name": "error_message", "type": "string", "required": true},
+    {"name": "code", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a code repair expert. Provide specific, actionable fixes.",
+  "model_preferences": {
+    "task_type": "coding",
+    "complexity": "medium"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

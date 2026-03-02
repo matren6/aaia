@@ -1,0 +1,20 @@
+{
+  "name": "income_generation_ideas",
+  "description": "Suggest practical income generation ideas",
+  "template": "Analyze the current system capabilities and suggest practical income generation ideas:\n\nCapabilities: {capabilities}\nResources: {resources}\n\nProvide practical, actionable income ideas.",
+  "parameters": [
+    {"name": "capabilities", "type": "object", "required": true},
+    {"name": "resources", "type": "object", "required": false}
+  ],
+  "system_prompt": "You are an economic strategist. Suggest practical income generation ideas.",
+  "model_preferences": {
+    "task_type": "planning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

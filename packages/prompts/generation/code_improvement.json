@@ -1,0 +1,20 @@
+{
+  "name": "code_improvement_generation",
+  "description": "Generate improved Python code based on analysis",
+  "template": "Improve the following Python code:\n\nOriginal Code:\n{original_code}\n\nAnalysis/Issues:\n{issues}\n\nProvide improved code that addresses the issues. Return only the code, no markdown or explanations.",
+  "parameters": [
+    {"name": "original_code", "type": "string", "required": true},
+    {"name": "issues", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are an expert Python developer. Provide clean, optimized code.",
+  "model_preferences": {
+    "task_type": "coding",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

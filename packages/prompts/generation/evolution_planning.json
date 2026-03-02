@@ -1,0 +1,19 @@
+{
+  "name": "evolution_task_creation",
+  "description": "Create actionable improvement tasks for AI evolution",
+  "template": "Create actionable improvement tasks based on the following analysis:\n\nAnalysis: {analysis}\n\nCreate specific, actionable tasks that will improve the AI system.\n\nResponse format (one per line):\n- [task description]",
+  "parameters": [
+    {"name": "analysis", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are an AI evolution planner creating actionable improvement tasks.",
+  "model_preferences": {
+    "task_type": "planning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

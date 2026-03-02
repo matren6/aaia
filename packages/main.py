@@ -39,6 +39,13 @@ from modules.environment_explorer import EnvironmentExplorer
 from modules.strategy_optimizer import StrategyOptimizer
 from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
+from modules.prompt_optimizer import PromptOptimizer
+
+# Prompt management
+try:
+    from prompts import get_prompt_manager
+except ImportError:
+    get_prompt_manager = None
 
 class Arbiter:
     def __init__(self):
@@ -243,6 +250,13 @@ class Arbiter:
                     print("  analyze <module> - Analyze a module for improvements")
                     print("  repair <module> - Attempt to repair a module")
                     print("  pipeline - Run complete evolution pipeline")
+                    print("-" * 40)
+                    print("Prompt Management:")
+                    print("  prompts - List all available prompts")
+                    print("  prompt list - List prompts by category")
+                    print("  prompt get <name> - Show prompt details")
+                    print("  prompt update <name> - Update a prompt interactively")
+                    print("  prompt optimize <name> - AI-optimize a prompt")
                     print("-" * 40)
                     print("Advanced Self-Development:")
                     print("  reflect - Run meta-cognition reflection")
@@ -583,6 +597,29 @@ class Arbiter:
                     for trait, data in profile.get('traits', {}).items():
                         print(f"  • {trait}: {data.get('value', 'unknown')} (confidence: {data.get('confidence', 0):.2f})")
                     continue
+                elif command.lower() == "prompts":
+                    # List all prompts
+                    self.show_prompts()
+                    continue
+                elif command.lower().startswith("prompt get "):
+                    # Get a specific prompt
+                    prompt_name = command[11:].strip()
+                    self.show_prompt_detail(prompt_name)
+                    continue
+                elif command.lower().startswith("prompt update "):
+                    # Update a prompt
+                    prompt_name = command[13:].strip()
+                    self.update_prompt(prompt_name)
+                    continue
+                elif command.lower().startswith("prompt optimize "):
+                    # Optimize a prompt
+                    prompt_name = command[16:].strip()
+                    self.optimize_prompt(prompt_name)
+                    continue
+                elif command.lower() == "prompt list":
+                    # List prompts by category
+                    self.show_prompts_by_category()
+                    continue
                     
                 # Process regular command
                 response = self.process_command(command)
@@ -779,6 +816,132 @@ Evolution Commands:
                 print(f"✓ Module {module_name} repaired successfully")
             else:
                 print(f"✗ Failed to repair {module_name}")
+
+    def show_prompts(self):
+        """List all available prompts"""
+        try:
+            pm = get_prompt_manager()
+            prompts = pm.list_prompts()
+            
+            print(f"\n=== Available Prompts ({len(prompts)}) ===")
+            for prompt in prompts:
+                print(f"  • {prompt['name']} [{prompt['category']}]")
+                print(f"    {prompt['description'][:60]}..." if len(prompt.get('description', '')) > 60 else f"    {prompt.get('description', 'No description')}")
+                print(f"    Version: {prompt.get('version', '1.0')}")
+                print()
+        except Exception as e:
+            print(f"Error loading prompts: {e}")
+            print("PromptManager not available. Make sure prompts module is installed.")
+
+    def show_prompts_by_category(self):
+        """List prompts grouped by category"""
+        try:
+            pm = get_prompt_manager()
+            categories = pm.list_categories()
+            
+            print(f"\n=== Prompts by Category ===")
+            for category in categories:
+                prompts = pm.list_prompts(category=category)
+                print(f"\n[{category.upper()}] ({len(prompts)} prompts)")
+                for p in prompts:
+                    print(f"  • {p['name']}: {p['description'][:40]}..." if len(p.get('description', '')) > 40 else f"  • {p['name']}: {p.get('description', 'No description')}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def show_prompt_detail(self, prompt_name: str):
+        """Show detailed information about a prompt"""
+        try:
+            pm = get_prompt_manager()
+            prompt_data = pm.get_prompt_raw(prompt_name)
+            
+            print(f"\n=== Prompt: {prompt_name} ===")
+            print(f"Description: {prompt_data.get('description', 'N/A')}")
+            print(f"Category: {prompt_data.get('category', 'N/A')}")
+            print(f"Version: {prompt_data.get('metadata', {}).get('version', 'N/A')}")
+            print(f"Created: {prompt_data.get('metadata', {}).get('created_at', 'N/A')}")
+            print(f"Last Updated: {prompt_data.get('metadata', {}).get('last_updated', 'N/A')}")
+            print(f"\nTemplate:")
+            print("-" * 50)
+            print(prompt_data.get('template', 'N/A'))
+            print("-" * 50)
+            print(f"\nSystem Prompt: {prompt_data.get('system_prompt', 'N/A')}")
+            print(f"\nParameters:")
+            for param in prompt_data.get('parameters', []):
+                required = "required" if param.get('required', False) else "optional"
+                print(f"  • {param['name']} ({param.get('type', 'string')}) - {required}")
+        except ValueError as e:
+            print(f"Prompt not found: {prompt_name}")
+            print(f"Available prompts: {', '.join(get_prompt_manager().list_prompts())}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def update_prompt(self, prompt_name: str):
+        """Update a prompt interactively"""
+        try:
+            pm = get_prompt_manager()
+            prompt_data = pm.get_prompt_raw(prompt_name)
+            
+            print(f"\n=== Update Prompt: {prompt_name} ===")
+            print("Current template:")
+            print(prompt_data.get('template', ''))
+            print("\n" + "=" * 50)
+            print("Enter new template (Ctrl-D to save, Ctrl-C to cancel):")
+            
+            try:
+                new_template = sys.stdin.read().strip()
+                if new_template:
+                    pm.update_prompt(prompt_name, {"template": new_template})
+                    print(f"\n✓ Prompt '{prompt_name}' updated successfully")
+                else:
+                    print("No changes made.")
+            except (KeyboardInterrupt, EOFError):
+                print("\nCancelled.")
+        except ValueError as e:
+            print(f"Error: {e}")
+
+    def optimize_prompt(self, prompt_name: str):
+        """Optimize a prompt using AI"""
+        print(f"\n=== Optimizing Prompt: {prompt_name} ===")
+        
+        try:
+            pm = get_prompt_manager()
+            
+            # Get performance metrics (simplified)
+            performance_metrics = {
+                "issues": ["Could be more specific", "Add examples"],
+                "success_criteria": "Clear, actionable output"
+            }
+            
+            # Initialize optimizer
+            optimizer = PromptOptimizer(pm, self.router, self.scribe)
+            
+            # Create optimized version
+            test_name = optimizer.optimize_prompt(prompt_name, performance_metrics)
+            
+            print(f"\n✓ Created optimized test version: {test_name}")
+            
+            # Show comparison
+            original = pm.get_prompt_raw(prompt_name)
+            test = pm.get_prompt_raw(test_name)
+            
+            print(f"\nOriginal:")
+            print(f"  {original.get('template', '')[:100]}...")
+            print(f"\nOptimized:")
+            print(f"  {test.get('template', '')[:100]}...")
+            
+            # Ask to apply
+            apply = input("\nApply this optimization? (y/n): ").lower()
+            if apply == 'y':
+                pm.update_prompt(prompt_name, {"template": test.get("template", "")})
+                pm.delete_prompt(test_name)  # Clean up test version
+                print(f"\n✓ Prompt '{prompt_name}' updated with optimized version")
+            else:
+                print("Optimization not applied. Test version preserved for later comparison.")
+                
+        except ValueError as e:
+            print(f"Error: {e}")
+        except Exception as e:
+            print(f"Optimization failed: {e}")
 
 if __name__ == "__main__":
     arbiter = Arbiter()

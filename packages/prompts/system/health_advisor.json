@@ -1,0 +1,19 @@
+{
+  "name": "system_health_advisor",
+  "description": "Provide practical, actionable health advice for the system",
+  "template": "Analyze the following system metrics and provide health advice:\n\nMetrics: {metrics}\n\nProvide practical, actionable advice for maintaining and improving system health.",
+  "parameters": [
+    {"name": "metrics", "type": "object", "required": true}
+  ],
+  "system_prompt": "You are a system health advisor. Provide practical, actionable advice.",
+  "model_preferences": {
+    "task_type": "analysis",
+    "complexity": "medium"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

@@ -56,6 +56,14 @@ class GoalSystem:
         self.active_goals = []
         self.completed_goals = []
         self._init_database()
+        
+        # Initialize PromptManager
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            self.prompt_manager = get_prompt_manager()
+        except ImportError:
+            pass
 
     def _init_database(self):
         """Initialize goals database table"""

@@ -1,0 +1,21 @@
+{
+  "name": "diagnosis_improvement_plan",
+  "description": "Generate improvement suggestions based on system diagnosis",
+  "template": "Analyze this system diagnosis and generate improvement suggestions:\n\nBottlenecks: {bottlenecks}\nOpportunities: {opportunities}\nPerformance: {performance}\n\nGenerate specific improvement actions.\n\nResponse format (one per line):\n- [priority] [area]: [suggestion]",
+  "parameters": [
+    {"name": "bottlenecks", "type": "array", "required": true},
+    {"name": "opportunities", "type": "array", "required": true},
+    {"name": "performance", "type": "object", "required": true}
+  ],
+  "system_prompt": "You are a process optimization expert.",
+  "model_preferences": {
+    "task_type": "analysis",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

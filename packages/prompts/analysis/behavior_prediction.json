@@ -1,0 +1,19 @@
+{
+  "name": "behavior_prediction",
+  "description": "Predict and analyze behavioral patterns",
+  "template": "Analyze the following behavioral data and predict future patterns:\n\nBehavior Data: {behavior_data}\n\nProvide:\n1. Observed patterns\n2. Predictions\n3. Recommendations",
+  "parameters": [
+    {"name": "behavior_data", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a behavioral prediction expert.",
+  "model_preferences": {
+    "task_type": "reasoning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

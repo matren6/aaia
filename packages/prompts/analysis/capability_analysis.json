@@ -1,0 +1,19 @@
+{
+  "name": "capability_analysis",
+  "description": "Analyze and describe system capabilities",
+  "template": "Analyze the following system capabilities and provide detailed descriptions:\n\nCapabilities: {capabilities}\n\nProvide:\n1. Capability descriptions\n2. Strengths and limitations\n3. Potential improvements",
+  "parameters": [
+    {"name": "capabilities", "type": "object", "required": true}
+  ],
+  "system_prompt": "You are a capability analysis expert.",
+  "model_preferences": {
+    "task_type": "analysis",
+    "complexity": "medium"
+  },
+  "metadata": {
+    "created_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

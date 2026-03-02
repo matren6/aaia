@@ -70,6 +70,14 @@ class SelfDiagnosis:
         self.goals = goals
         self.event_bus = event_bus
         self.diagnosis_interval = 3600  # 1 hour in seconds
+        
+        # Initialize PromptManager
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            self.prompt_manager = get_prompt_manager()
+        except ImportError:
+            pass
 
     def perform_full_diagnosis(self) -> Dict:
         """Comprehensive system self-assessment"""
@@ -248,8 +256,27 @@ class SelfDiagnosis:
         conn.close()
 
         for action, freq in frequent_actions:
-            # Use AI to suggest improvement
-            prompt = f"""
+            # Use AI to suggest improvement - try PromptManager first
+            suggestion = None
+            try:
+                if self.prompt_manager:
+                    prompt_data = self.prompt_manager.get_prompt(
+                        "improvement_opportunity",
+                        action=action[:100],
+                        frequency=freq
+                    )
+                    model_name, _ = self.router.route_request("analysis", "medium")
+                    suggestion = self.router.call_model(
+                        model_name,
+                        prompt_data["prompt"],
+                        prompt_data["system_prompt"]
+                    )
+            except Exception:
+                pass
+            
+            if not suggestion:
+                # Fallback to inline prompt
+                prompt = f"""
 Action performed frequently in the last week: '{action[:100]}'
 Frequency: {freq} times
 
@@ -263,20 +290,22 @@ AUTOMATION: [suggestion]
 OPTIMIZATION: [suggestion]
 ELIMINATION: [if applicable]
 """
-            try:
-                model_name, _ = self.router.route_request("analysis", "medium")
-                suggestion = self.router.call_model(
-                    model_name,
-                    prompt,
-                    system_prompt="You are a process optimization expert."
-                )
+                try:
+                    model_name, _ = self.router.route_request("analysis", "medium")
+                    suggestion = self.router.call_model(
+                        model_name,
+                        prompt,
+                        system_prompt="You are a process optimization expert."
+                    )
+                except Exception:
+                    pass
+            
+            if suggestion:
                 opportunities.append({
                     "action": action[:50],
                     "frequency": freq,
                     "suggestion": suggestion
                 })
-            except Exception:
-                pass
 
         return opportunities
 
@@ -401,7 +430,28 @@ ELIMINATION: [if applicable]
             
             # Get AI suggestions for improvement
             if analysis["functions"]:
-                improvement_prompt = f"""
+                suggestions = None
+                try:
+                    if self.prompt_manager:
+                        prompt_data = self.prompt_manager.get_prompt(
+                            "code_improvement_analysis",
+                            module_name=module_name,
+                            lines_of_code=analysis["lines_of_code"],
+                            function_count=len(analysis["functions"]),
+                            complex_functions=[c["function"] for c in analysis["complexities"]]
+                        )
+                        model_name, _ = self.router.route_request("coding", "high")
+                        suggestions = self.router.call_model(
+                            model_name,
+                            prompt_data["prompt"],
+                            prompt_data["system_prompt"]
+                        )
+                except Exception:
+                    pass
+                
+                if not suggestions:
+                    # Fallback to inline prompt
+                    improvement_prompt = f"""
 Analyze this Python module for improvement opportunities:
 Module: {module_name}
 Lines: {analysis['lines_of_code']}
@@ -418,13 +468,18 @@ Be specific and actionable.
 Response format (one line per suggestion):
 - [area]: [suggestion]
 """
-                model_name, _ = self.router.route_request("coding", "high")
-                suggestions = self.router.call_model(
-                    model_name,
-                    improvement_prompt,
-                    system_prompt="You are a code review expert."
-                )
-                analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip()]
+                    try:
+                        model_name, _ = self.router.route_request("coding", "high")
+                        suggestions = self.router.call_model(
+                            model_name,
+                            improvement_prompt,
+                            system_prompt="You are a code review expert."
+                        )
+                    except Exception:
+                        pass
+                
+                if suggestions:
+                    analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip()]
             
             return analysis
             

@@ -47,6 +47,14 @@ class DialogueManager:
         self.scribe = scribe
         self.router = router
         
+        # Initialize PromptManager
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            self.prompt_manager = get_prompt_manager()
+        except ImportError:
+            pass
+        
     def structured_argument(self, master_command: str, context: str = "") -> Tuple[str, List[str], List[str]]:
         """Implement structured argument protocol
         
@@ -61,31 +69,56 @@ class DialogueManager:
             outcome="pending"
         )
         
-        # Use model to analyze command
-        model_name, model_info = self.router.route_request("reasoning", "high")
+        # Use model to analyze command - try PromptManager first
+        response = None
+        system_prompt = "You are a critical thinking partner analyzing commands for risks and better approaches."
+
+        try:
+            if self.prompt_manager:
+                prompt_data = self.prompt_manager.get_prompt(
+                    "command_understanding",
+                    command=master_command,
+                    context=context
+                )
+                model_name, _ = self.router.route_request("reasoning", "high")
+                response = self.router.call_model(
+                    model_name,
+                    prompt_data["prompt"],
+                    prompt_data["system_prompt"]
+                )
+        except Exception as e:
+            self.scribe.log_action(
+                "Dialogue analysis",
+                f"PromptManager failed: {str(e)}, using inline prompt",
+                "warning"
+            )
         
-        analysis_prompt = f"""
-        As an AI partner analyzing a master's command, perform this analysis:
-        
-        Master's Command: {master_command}
-        Context: {context}
-        
-        1. Understanding: What is the master's likely goal?
-        2. Risk/Flaw Analysis: What potential issues exist?
-        3. Alternative Approaches: What better methods might achieve the goal?
-        
-        Format your response as:
-        UNDERSTANDING: [your analysis]
-        RISKS: [list of risks]
-        ALTERNATIVES: [list of alternatives]
-        """
-        
-        response = self.router.call_model(
-            model_name,
-            analysis_prompt,
-            system_prompt="You are a critical thinking partner analyzing commands for risks and better approaches."
-        )
-        
+        # Fallback to inline prompt if PromptManager fails
+        if not response:
+            model_name, model_info = self.router.route_request("reasoning", "high")
+
+            analysis_prompt = f"""
+            As an AI partner analyzing a master's command, perform this analysis:
+
+            Master's Command: {master_command}
+            Context: {context}
+
+            1. Understanding: What is the master's likely goal?
+            2. Risk/Flaw Analysis: What potential issues exist?
+            3. Alternative Approaches: What better methods might achieve the goal?
+
+            Format your response as:
+            UNDERSTANDING: [your analysis]
+            RISKS: [list of risks]
+            ALTERNATIVES: [list of alternatives]
+            """
+
+            response = self.router.call_model(
+                model_name,
+                analysis_prompt,
+                system_prompt=system_prompt
+            )
+
         # Parse response
         understanding = ""
         risks = []
