@@ -1,0 +1,23 @@
+{
+  "name": "intent_prediction",
+  "description": "Predict master's next commands based on behavioral patterns",
+  "template": "You are a behavioral prediction expert for an AI assistant.\n\nRecent Command Context:\n{context_str}\n\nMaster's Behavioral Model:\n{master_model}\n\nTemporal Patterns:\n- Time of day preference: {time_preference}\n- Day of week pattern: {day_preference}\n\nSequential Patterns:\n{sequential_pattern}\n\nBased on this context and patterns, predict the 3 most likely next commands the master will give.\nConsider:\n1. Temporal patterns (time of day, day of week)\n2. Sequential patterns (command chains)\n3. Intent progression (simple -> complex tasks)\n4. Recent topics of interest\n\nFormat each prediction exactly as:\nPREDICTION: [command or task description]\nCONFIDENCE: [0.00-1.00]\nRATIONALE: [why this prediction makes sense]\n\nRepeat this format 3 times for top 3 predictions.",
+  "parameters": [
+    {"name": "context_str", "type": "string", "required": true},
+    {"name": "master_model", "type": "string", "required": true},
+    {"name": "time_preference", "type": "string", "required": true},
+    {"name": "day_preference", "type": "string", "required": true},
+    {"name": "sequential_pattern", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a behavioral prediction expert.",
+  "model_preferences": {
+    "task_type": "prediction",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "ai_agent",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

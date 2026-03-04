@@ -1,0 +1,20 @@
+{
+  "name": "capability_analysis_new",
+  "description": "Discover new capabilities the system could develop",
+  "template": "You are a capability planning expert for an Autonomous AI Agent.\n\nSystem Capabilities:\n{current_capabilities}\n\nRecent Actions:\n{recent_actions}\n\nAnalyze this data and suggest 3 new capabilities that would benefit this AI system.\nFor each capability provide:\n- Name: [capability name]\n- Description: [what it does]\n- Value: [why it's valuable 1-10]\n- Complexity: [how hard to build 1-10]\n- Dependencies: [what's needed]",
+  "parameters": [
+    {"name": "current_capabilities", "type": "string", "required": true},
+    {"name": "recent_actions", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a capability discovery expert for autonomous AI systems.",
+  "model_preferences": {
+    "task_type": "analysis",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "ai_agent",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0",
+    "last_updated": "2024-01-01T00:00:00Z"
+  }
+}

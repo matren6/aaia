@@ -1,0 +1,21 @@
+{
+  "name": "environment_analysis",
+  "description": "Analyze system environment and find development opportunities",
+  "template": "Analyze this environment data and identify development opportunities:\n\nSystem Info: {system_info}\nAvailable Commands: {available_commands}\nResource Availability: {resources}\nNetwork: {network}\n\nSuggest opportunities for:\n1. New capabilities to develop\n2. Tools to create\n3. Improvements to make\n4. Value generation strategies",
+  "parameters": [
+    {"name": "system_info", "type": "string", "required": true},
+    {"name": "available_commands", "type": "string", "required": true},
+    {"name": "resources", "type": "string", "required": true},
+    {"name": "network", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are an environment analysis expert.",
+  "model_preferences": {
+    "task_type": "analysis",
+    "complexity": "medium"
+  },
+  "metadata": {
+    "created_by": "ai_agent",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0"
+  }
+}

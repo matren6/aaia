@@ -1,9 +1,13 @@
 {
   "name": "system_health_advisor",
   "description": "Provide practical, actionable health advice for the system",
-  "template": "Analyze the following system metrics and provide health advice:\n\nMetrics: {metrics}\n\nProvide practical, actionable advice for maintaining and improving system health.",
+  "template": "System health issues detected: {issues_text}\nAs an autonomous AI, suggest practical actions to resolve these issues.\nFocus on actionable steps I can implement automatically or propose to my master.\nKeep suggestions specific and implementable.\nResponse format:\nSUGGESTION: [your suggestion]",
   "parameters": [
-    {"name": "metrics", "type": "object", "required": true}
+    {
+      "name": "issues_text",
+      "type": "string",
+      "required": false
+    }
   ],
   "system_prompt": "You are a system health advisor. Provide practical, actionable advice.",
   "model_preferences": {

@@ -1,0 +1,20 @@
+{
+  "name": "strategy_optimization",
+  "description": "Optimize evolution strategy based on history and current state",
+  "template": "Analyze this evolution history and optimize strategy:\n\nHistory: {history}\nCurrent State: {current_state}\nCapabilities: {capabilities}\n\nRecommend:\n1. ADOPT: [strategies working well - keep doing]\n2. AVOID: [strategies not working - stop]\n3. EXPERIMENT: [new strategies to try]\n\nProvide specific, actionable recommendations.",
+  "parameters": [
+    {"name": "history", "type": "string", "required": true},
+    {"name": "current_state", "type": "string", "required": true},
+    {"name": "capabilities", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a strategic optimization expert.",
+  "model_preferences": {
+    "task_type": "reasoning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "ai_agent",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0"
+  }
+}

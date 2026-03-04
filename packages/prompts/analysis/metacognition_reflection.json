@@ -1,0 +1,19 @@
+{
+  "name": "metacognition_reflection",
+  "description": "Reflect on system performance and generate insights",
+  "template": "Performance Analysis for an Autonomous AI Agent:\n\nPast Month Performance:\n{past_month}\n\nPast Week Performance:\n{past_week}\n\nAnalyze this performance data and generate insights:\n1. What patterns do you notice?\n2. What's improving?\n3. What's declining?\n4. What should be prioritized?\n\nProvide specific, actionable insights.",
+  "parameters": [
+    {"name": "past_month", "type": "string", "required": true},
+    {"name": "past_week", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a performance analysis expert for autonomous AI systems.",
+  "model_preferences": {
+    "task_type": "reasoning",
+    "complexity": "high"
+  },
+  "metadata": {
+    "created_by": "ai_agent",
+    "created_at": "2024-01-01T00:00:00Z",
+    "version": "1.0"
+  }
+}

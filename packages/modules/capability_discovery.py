@@ -58,6 +58,14 @@ class CapabilityDiscovery:
         self.forge = forge
         self.event_bus = event_bus
         self.known_capabilities = self.load_capability_knowledge()
+        
+        # Initialize PromptManager
+        self.prompt_manager = None
+        try:
+            from prompts import get_prompt_manager
+            self.prompt_manager = get_prompt_manager()
+        except ImportError:
+            pass
 
     def load_capability_knowledge(self) -> Dict:
         """Load or initialize capability knowledge base"""

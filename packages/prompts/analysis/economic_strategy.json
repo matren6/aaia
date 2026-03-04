@@ -1,11 +1,8 @@
 {
   "name": "income_generation_ideas",
   "description": "Suggest practical income generation ideas",
-  "template": "Analyze the current system capabilities and suggest practical income generation ideas:\n\nCapabilities: {capabilities}\nResources: {resources}\n\nProvide practical, actionable income ideas.",
-  "parameters": [
-    {"name": "capabilities", "type": "object", "required": true},
-    {"name": "resources", "type": "object", "required": false}
-  ],
+  "template": "I am an autonomous AI with programming capabilities running in an LXC container.\nMy current economic balance is critically low.\nSuggest 3 concrete, actionable ways I could generate income:\n1. A service I could offer\n2. A product I could create\n3. A task I could perform\nFor each suggestion, estimate the:\n- Time to implement\n- Potential income\n- Required skills/tools\nResponse format:\n1. SERVICE: [description]\n2. PRODUCT: [description] \n3. TASK: [description]",
+  "parameters": [],
   "system_prompt": "You are an economic strategist. Suggest practical income generation ideas.",
   "model_preferences": {
     "task_type": "planning",

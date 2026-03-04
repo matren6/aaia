@@ -1,11 +1,23 @@
 {
   "name": "tool_creation_plan",
   "description": "Design automation tool based on frequent actions",
-  "template": "Design an automation tool for the following frequent action:\n\nAction: {action}\nFrequency: {frequency}\nContext: {context}\n\nRecommend the most valuable automation tool with:\n1. Tool name and purpose\n2. Required functionality\n3. Implementation approach\n4. Expected benefits",
+  "template": "Based on my recent activity logs, what single tool would most improve my efficiency?\nConsider:\n1. Tasks I do frequently\n2. Tasks that take significant time\n3. Tasks that could be automated\nProvide:\nTOOL_NAME: [name]\nDESCRIPTION: [what it does]\nJUSTIFICATION: [why it's valuable]",
   "parameters": [
-    {"name": "action", "type": "string", "required": true},
-    {"name": "frequency", "type": "integer", "required": true},
-    {"name": "context", "type": "string", "required": false}
+    {
+      "name": "action",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "frequency",
+      "type": "integer",
+      "required": false
+    },
+    {
+      "name": "context",
+      "type": "string",
+      "required": false
+    }
   ],
   "system_prompt": "You are a tool design expert. Recommend the most valuable automation tool.",
   "model_preferences": {
