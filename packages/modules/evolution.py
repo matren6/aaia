@@ -16,7 +16,7 @@ Self-diagnosis finds problems, but who acts on them?
 
 KEY RESPONSIBILITIES:
 1. plan_evolution_cycle(): Create improvement plan from diagnosis
-2. execute_evolution_task(): Execute a single improvement task
+2. execute_evolution_task(): Execute a single evolution task
 3. _generate_tasks_for_goal(): AI-generate specific tasks
 4. _execute_optimization_task(): Run optimization tasks
 5. _execute_creation_task(): Create new tools/capabilities
@@ -45,10 +45,12 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
 
+from modules.container import DependencyError
+
 class EvolutionManager:
     """Manages AI self-evolution cycles and task execution."""
 
-    def __init__(self, scribe, router, forge, diagnosis, modification, event_bus=None):
+    def __init__(self, scribe, router, forge, diagnosis, modification, event_bus=None, prompt_manager=None):
         """
         Initialize the Evolution Manager.
         
@@ -69,6 +71,26 @@ class EvolutionManager:
         self.evolution_log_path = Path("data/evolution.json")
         self.evolution_log_path.parent.mkdir(parents=True, exist_ok=True)
         self.current_plan = None
+        
+        # Optional PromptManager instance for centralized prompts
+        self.prompt_manager = prompt_manager
+        # Detect which centralized prompts are available (so we can avoid hardcoded prompts)
+        self._pm_prompts = set()
+        try:
+            if self.prompt_manager is not None:
+                try:
+                    # probe known prompt names used by this module
+                    for _name in ("evolution_task_creation", "task_execution_planner"):
+                        try:
+                            # get_prompt_raw will raise if prompt missing
+                            self.prompt_manager.get_prompt_raw(_name)
+                            self._pm_prompts.add(_name)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+        except Exception:
+            self._pm_prompts = set()
         
         # Load evolution config
         try:
@@ -170,62 +192,47 @@ class EvolutionManager:
 
     def _generate_tasks_for_goal(self, goal: str, diagnosis: Dict) -> List[Dict]:
         """Generate specific tasks to achieve a goal using AI"""
-        prompt = f"""
-Goal: {goal}
+        # Use centralized prompt via PromptManager only
+        if "evolution_task_creation" not in self._pm_prompts:
+            raise DependencyError("Required prompt 'evolution_task_creation' not registered in PromptManager")
 
-Current system diagnosis:
-- Performance: {diagnosis.get('performance', {})}
-- Bottlenecks: {diagnosis.get('bottlenecks', [])}
-- Improvement opportunities: {len(diagnosis.get('improvement_opportunities', []))}
+        analysis_text = (
+            f"Goal: {goal}\n\n"
+            f"Performance: {diagnosis.get('performance', {})}\n"
+            f"Bottlenecks: {diagnosis.get('bottlenecks', [])}\n"
+            f"Improvement opportunities: {len(diagnosis.get('improvement_opportunities', []))}"
+        )
 
-Generate 2-3 specific, actionable tasks to achieve this goal.
-Each task should be:
-- Concrete and measurable
-- Achievable within a day
-- Something I can implement (create tool, modify code, etc.)
+        model_name, _ = self.router.route_request("planning", "high")
+        prompt_data = self.prompt_manager.get_prompt("evolution_task_creation", analysis=analysis_text)
+        response = self.router.call_model(model_name, prompt_data["prompt"], prompt_data.get("system_prompt", ""))
 
-Format each task as:
-TASK: [task name]
-DESCRIPTION: [what to do]
-EXPECTED_BENEFIT: [expected outcome]
-EFFORT: [low/medium/high]
-"""
-        try:
-            model_name, _ = self.router.route_request("planning", "high")
-            response = self.router.call_model(
-                model_name,
-                prompt,
-                system_prompt="You are an AI evolution planner creating actionable improvement tasks."
-            )
-            
-            tasks = []
-            current_task = {}
-            
-            for line in response.split("\n"):
-                line = line.strip()
-                if line.startswith("TASK:"):
-                    if current_task:
-                        tasks.append(current_task)
-                    current_task = {"task": line.replace("TASK:", "").strip(), "status": "pending"}
-                elif line.startswith("DESCRIPTION:"):
-                    current_task["description"] = line.replace("DESCRIPTION:", "").strip()
-                elif line.startswith("EXPECTED_BENEFIT:"):
-                    current_task["expected_benefit"] = line.replace("EXPECTED_BENEFIT:", "").strip()
-                elif line.startswith("EFFORT:"):
-                    current_task["effort"] = line.replace("EFFORT:", "").strip().lower()
-            
-            if current_task:
-                tasks.append(current_task)
-            
-            return tasks
-            
-        except Exception as e:
-            return [{
-                "task": f"Analyze {goal}",
-                "description": "Analyze system for opportunities",
-                "effort": "low",
-                "status": "pending"
-            }]
+        tasks: List[Dict] = []
+        current_task: Dict = {}
+
+        for line in response.split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Expect lines like '- [task description]' per template
+            if line.startswith("-"):
+                desc = line.lstrip('-').strip()
+                tasks.append({"task": desc, "description": desc, "status": "pending"})
+            elif line.upper().startswith("TASK:"):
+                if current_task:
+                    tasks.append(current_task)
+                current_task = {"task": line.replace("TASK:", "").strip(), "status": "pending"}
+            elif line.upper().startswith("DESCRIPTION:") and current_task:
+                current_task["description"] = line.replace("DESCRIPTION:", "").strip()
+            elif line.upper().startswith("EXPECTED_BENEFIT:") and current_task:
+                current_task["expected_benefit"] = line.replace("EXPECTED_BENEFIT:", "").strip()
+            elif line.upper().startswith("EFFORT:") and current_task:
+                current_task["effort"] = line.replace("EFFORT:", "").strip().lower()
+
+        if current_task:
+            tasks.append(current_task)
+
+        return tasks
 
     def execute_evolution_task(self, task: Dict) -> Dict:
         """Execute a single evolution task"""
@@ -344,27 +351,15 @@ EFFORT: [low/medium/high]
 
     def _execute_generic_task(self, task: Dict) -> str:
         """Execute a generic task using AI to determine approach"""
-        prompt = f"""
-Task: {task.get('task')}
-Description: {task.get('description')}
+        # Use centralized prompt via PromptManager only
+        if "task_execution_planner" not in self._pm_prompts:
+            raise DependencyError("Required prompt 'task_execution_planner' not registered in PromptManager")
 
-Determine how to execute this task. Should I:
-1. Create a new tool?
-2. Optimize existing code?
-3. Analyze something?
-4. Modify configuration?
+        prompt_data = self.prompt_manager.get_prompt("task_execution_planner", task=task.get('task', ''), description=task.get('description', ''))
+        model_name, _ = self.router.route_request("reasoning", "medium")
+        response = self.router.call_model(model_name, prompt_data["prompt"], prompt_data.get("system_prompt", ""))
 
-Respond with just the action to take:
-ACTION: [one of: create_tool, optimize, analyze, modify_config]
-"""
         try:
-            model_name, _ = self.router.route_request("reasoning", "medium")
-            response = self.router.call_model(
-                model_name,
-                prompt,
-                system_prompt="You are a task execution planner."
-            )
-            
             if "create_tool" in response.lower():
                 return self._execute_creation_task(task)
             elif "optimize" in response.lower():
@@ -373,7 +368,7 @@ ACTION: [one of: create_tool, optimize, analyze, modify_config]
                 return self._execute_analysis_task(task)
             else:
                 return f"Task analyzed: {task.get('task')}"
-        except:
+        except Exception:
             return f"Task queued: {task.get('task')}"
 
     def _save_evolution_plan(self, plan: Dict):

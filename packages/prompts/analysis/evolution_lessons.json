@@ -1,0 +1,12 @@
+{
+  "name": "evolution_lessons_reflection",
+  "description": "Generate lessons learned from an evolution cycle",
+  "template": "Reflect on this evolution cycle:\n\nValidation results: {validation_summary}\nMeta-cognitive insights: {insights}\n\nWhat lessons can be learned from this evolution?\nWhat should be done differently next time?\n\nFormat as:\nLESSON_1: [lesson learned]\nLESSON_2: [lesson learned]\nIMPROVEMENT: [suggestion for next evolution]",
+  "parameters": [
+    {"name": "validation_summary", "type": "string", "required": false},
+    {"name": "insights", "type": "string", "required": false}
+  ],
+  "system_prompt": "You are a reflective learning expert.",
+  "model_preferences": {"task_type": "analysis", "complexity": "medium"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

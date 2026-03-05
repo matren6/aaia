@@ -47,25 +47,22 @@ import sqlite3
 import json
 from typing import Dict, List
 from datetime import datetime, timedelta
+from modules.container import DependencyError
 
 
 class CapabilityDiscovery:
     """Discover new capabilities the system could develop"""
 
-    def __init__(self, scribe, router, forge, event_bus=None):
+    def __init__(self, scribe, router, forge, event_bus=None, prompt_manager=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
         self.event_bus = event_bus
+        # PromptManager must be provided via DI
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to CapabilityDiscovery")
         self.known_capabilities = self.load_capability_knowledge()
-        
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
 
     def load_capability_knowledge(self) -> Dict:
         """Load or initialize capability knowledge base"""
@@ -133,47 +130,26 @@ class CapabilityDiscovery:
         potential_integrations = self.analyze_potential_integrations()
         system_gaps = self.identify_system_gaps()
 
-        # Use AI to suggest capabilities
-        prompt = f"""
-You are a capability planning expert for an Autonomous AI Agent.
-
-Current System Capabilities (already developed):
-{self._format_current_capabilities()}
-
-Frequent Command Patterns (what the master uses most):
-{chr(10).join(f'  - {cmd}' for cmd in frequent_commands[:10])}
-
-Potential External Integrations (APIs/services available):
-{chr(10).join(f'  - {intg}' for intg in potential_integrations[:10])}
-
-Identified System Gaps (missing functionality):
-{chr(10).join(f'  - {gap}' for gap in system_gaps[:10])}
-
-Based on this analysis, suggest 5 new capabilities we should develop.
-For each capability, provide:
-1. Name (short, descriptive)
-2. Description (what it does)
-3. Why it's valuable (value 1-10)
-4. Estimated development complexity (1-10)
-5. Dependencies required (what else needs to be built first)
-
-Format (use this exact format):
-CAPABILITY_1: [name]
-DESCRIPTION: [what it does]
-VALUE: [1-10]
-COMPLEXITY: [1-10]
-DEPENDENCIES: [comma-separated list or 'none']
-
-CAPABILITY_2: [name]
-... (repeat for 5 capabilities)
-"""
-
+        # Use PromptManager to suggest capabilities
         try:
+            # Build a combined capabilities summary to pass to the prompt template
+            combined = (
+                f"Current Capabilities:\n{self._format_current_capabilities()}\n\n"
+                f"Frequent Commands:\n{chr(10).join(f'  - {cmd}' for cmd in frequent_commands[:10])}\n\n"
+                f"Potential Integrations:\n{chr(10).join(f'  - {intg}' for intg in potential_integrations[:10])}\n\n"
+                f"Identified Gaps:\n{chr(10).join(f'  - {gap}' for gap in system_gaps[:10])}"
+            )
+
+            prompt_data = self.prompt_manager.get_prompt(
+                "capability_analysis",
+                capabilities=combined
+            )
+
             model_name, _ = self.router.route_request("planning", "high")
             response = self.router.call_model(
                 model_name,
-                prompt,
-                system_prompt="You are a capability discovery expert for autonomous AI systems."
+                prompt_data["prompt"],
+                prompt_data.get("system_prompt", "You are a capability discovery expert for autonomous AI systems.")
             )
 
             capabilities = self.parse_capability_suggestions(response)

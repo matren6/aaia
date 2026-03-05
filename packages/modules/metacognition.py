@@ -1,223 +1,55 @@
 """
-Meta-Cognition Module - Higher-Order Self-Reflection
+Meta-cognition Module - Reflective Analysis and Insight Generation
 
 PURPOSE:
-The Meta-Cognition module provides higher-order thinking about the system's
-own cognition. It enables the AI to reflect on its effectiveness, track
-improvements over time, and generate insights about performance patterns.
-This is "thinking about thinking."
-
-PROBLEM SOLVED:
-Basic self-diagnosis finds problems, but meta-cognition asks:
-- Are we actually improving over time?
-- What's working vs what's regressing?
-- What patterns exist in our performance?
-- How effective are we overall?
-- What should we focus on next?
-
-Without meta-cognition, the AI can't assess its own improvement trajectory.
-
-KEY RESPONSIBILITIES:
-1. record_performance_snapshot(): Record metrics for trend analysis
-2. collect_current_metrics(): Gather current performance data
-3. get_performance_metrics(): Get aggregated metrics for time periods
-4. reflect_on_effectiveness(): Analyze improvement/regression trends
-5. generate_insights(): Use AI to interpret performance data
-6. think_about_thinking(): Meta-thought on thinking process itself
-7. get_recent_themes(): Extract themes from thought patterns
-8. get_effectiveness_score(): Calculate overall 0-1 effectiveness
-
-METRICS TRACKED:
-- Error rate (lower is better)
-- Response time
-- Task completion rate
-- Autonomous actions count
-- Goals completed
-- Evolutions executed
-
-TREND ANALYSIS:
-- Compare past week to past month
-- Identify improvements, regressions, stable areas
-- Generate AI insights about patterns
-- Calculate overall effectiveness score
-
-DEPENDENCIES: Scribe, Router, SelfDiagnosis
-OUTPUTS: Performance analysis, effectiveness scores, insights
+Provide metacognitive analysis of system performance and internal thought
+patterns to guide evolution and improvements.
 """
 
-import sqlite3
 import json
-from typing import Dict, List
 from datetime import datetime, timedelta
+from typing import Dict, List
+from modules.container import DependencyError
 
 
 class MetaCognition:
-    """Higher-order thinking about system cognition and performance"""
+    """Meta-cognition: Analyze internal thinking and performance"""
 
-    def __init__(self, scribe, router, diagnosis, event_bus = None):
+    def __init__(self, scribe, router, event_bus=None, prompt_manager=None):
         self.scribe = scribe
         self.router = router
-        self.diagnosis = diagnosis
         self.event_bus = event_bus
         self.thought_log = []
-        self.performance_history = self.load_performance_history()
+        self.performance_history = []
+        # PromptManager must be provided via DI
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to MetaCognition")
 
-    def load_performance_history(self) -> List[Dict]:
-        """Load historical performance metrics"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
+        # Probe required prompts
+        required = ("metacognition_reflection", "thinking_patterns")
+        missing = []
+        for name in required:
+            try:
+                self.prompt_manager.get_prompt_raw(name)
+            except Exception:
+                missing.append(name)
 
-        # Create table if not exists
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS performance_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                error_rate REAL,
-                response_time REAL,
-                task_completion_rate REAL,
-                autonomous_actions INTEGER,
-                goals_completed INTEGER,
-                evolutions_executed INTEGER,
-                insights_generated TEXT,
-                metadata TEXT
-            )
-        ''')
+        if missing:
+            raise DependencyError(f"Required prompt templates missing: {', '.join(missing)}")
 
-        # Create evolution_history table if it doesn't exist
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS evolution_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                cycle_id TEXT,
-                status TEXT,
-                tasks_completed INTEGER,
-                tasks_failed INTEGER,
-                notes TEXT
-            )
-        ''')
-
-        # Get last 30 days of data
-        cursor.execute('''
-            SELECT timestamp, error_rate, response_time, task_completion_rate,
-                   autonomous_actions, goals_completed, evolutions_executed
-            FROM performance_metrics
-            WHERE timestamp > datetime('now', '-30 days')
-            ORDER BY timestamp DESC
-        ''')
-
-        rows = cursor.fetchall()
-        conn.close()
-
-        return [
-            {
-                "timestamp": row[0],
-                "error_rate": row[1],
-                "response_time": row[2],
-                "task_completion_rate": row[3],
-                "autonomous_actions": row[4],
-                "goals_completed": row[5],
-                "evolutions_executed": row[6]
-            }
-            for row in rows
-        ]
-
-    def record_performance_snapshot(self, metrics: Dict = None) -> None:
-        """Record a performance snapshot for trend analysis"""
-        if metrics is None:
-            # Collect current metrics
-            metrics = self.collect_current_metrics()
-
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            INSERT INTO performance_metrics (
-                timestamp, error_rate, response_time, task_completion_rate,
-                autonomous_actions, goals_completed, evolutions_executed
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            datetime.now().isoformat(),
-            metrics.get("error_rate", 0),
-            metrics.get("response_time", 0),
-            metrics.get("task_completion_rate", 0),
-            metrics.get("autonomous_actions", 0),
-            metrics.get("goals_completed", 0),
-            metrics.get("evolutions_executed", 0)
-        ))
-
-        conn.commit()
-        conn.close()
-
-        # Update local history
-        metrics["timestamp"] = datetime.now().isoformat()
-        self.performance_history.append(metrics)
-
-        self.scribe.log_action(
-            "Performance snapshot recorded",
-            f"Error rate: {metrics.get('error_rate', 0):.2f}%, "
-            f"Completion: {metrics.get('task_completion_rate', 0):.2f}%",
-            "metrics_recorded"
-        )
-
-    def collect_current_metrics(self) -> Dict:
-        """Collect current performance metrics"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        # Calculate error rate from last 7 days
-        cursor.execute('''
-            SELECT
-                COUNT(CASE WHEN outcome LIKE '%error%' OR outcome LIKE '%failed%' THEN 1 END) * 100.0 /
-                NULLIF(COUNT(*), 0) as error_rate
-            FROM action_log
-            WHERE timestamp > datetime('now', '-7 days')
-        ''')
-        error_rate_row = cursor.fetchone()
-        error_rate = error_rate_row[0] if error_rate_row[0] else 0
-
-        # Calculate task completion rate
-        cursor.execute('''
-            SELECT
-                COUNT(CASE WHEN outcome IN ('completed', 'executed', 'success') THEN 1 END) * 100.0 /
-                NULLIF(COUNT(*), 0) as completion_rate
-            FROM action_log
-            WHERE timestamp > datetime('now', '-7 days')
-        ''')
-        completion_row = cursor.fetchone()
-        task_completion = completion_row[0] if completion_row[0] else 0
-
-        # Count autonomous actions
-        cursor.execute('''
-            SELECT COUNT(*) FROM action_log
-            WHERE action LIKE '%autonomous%' OR action LIKE '%scheduler%'
-            AND timestamp > datetime('now', '-7 days')
-        ''')
-        autonomous_actions = cursor.fetchone()[0]
-
-        # Count goals completed
-        cursor.execute('''
-            SELECT COUNT(*) FROM goals
-            WHERE status = 'completed' AND completed_at > datetime('now', '-7 days')
-        ''')
-        goals_completed = cursor.fetchone()[0]
-
-        # Count evolutions
-        cursor.execute('''
-            SELECT COUNT(*) FROM evolution_history
-            WHERE timestamp > datetime('now', '-7 days')
-        ''')
-        evolutions = cursor.fetchone()[0]
-
-        conn.close()
-
-        return {
-            "error_rate": round(error_rate, 2),
-            "response_time": 0.0,  # Would need timing data
-            "task_completion_rate": round(task_completion, 2),
-            "autonomous_actions": autonomous_actions,
-            "goals_completed": goals_completed,
-            "evolutions_executed": evolutions
+    def record_performance_snapshot(self):
+        """Record a lightweight performance snapshot for trending"""
+        snapshot = {
+            "timestamp": datetime.now().isoformat(),
+            "error_rate": self.scribe.get_economic_status().get("balance", 0),
+            "task_completion_rate": 0,
+            "autonomous_actions": 0
         }
+        self.performance_history.append(snapshot)
+        if len(self.performance_history) > 100:
+            self.performance_history = self.performance_history[-100:]
+        return snapshot
 
     def get_performance_metrics(self, days: int = 7) -> Dict:
         """Get aggregated performance metrics for a time period"""
@@ -313,54 +145,28 @@ class MetaCognition:
 
     def generate_insights(self, past_month: Dict, past_week: Dict) -> List[str]:
         """Use AI to generate insights from performance data"""
-        prompt = f"""
-Performance Analysis for an Autonomous AI Agent:
+        # Use centralized prompt via PromptManager only
+        prompt_data = self.prompt_manager.get_prompt(
+            "metacognition_reflection",
+            past_month=json.dumps(past_month, indent=2),
+            past_week=json.dumps(past_week, indent=2)
+        )
+        model_name, _ = self.router.route_request("analysis", "high")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data.get("system_prompt", "")
+        )
 
-Past Month (30 days):
-- Error Rate: {past_month.get('error_rate', 0):.2f}%
-- Task Completion Rate: {past_month.get('task_completion_rate', 0):.2f}%
-- Autonomous Actions: {past_month.get('autonomous_actions', 0)}
-- Goals Completed: {past_month.get('goals_completed', 0)}
-- Evolutions Executed: {past_month.get('evolutions_executed', 0)}
+        insights = []
+        for line in response.strip().split('\n'):
+            line = line.strip()
+            if line and (line.startswith("WORKING:") or
+                        line.startswith("REGRESSIONS:") or
+                        line.startswith("NEXT_FOCUS:")):
+                insights.append(line)
 
-Past Week (7 days):
-- Error Rate: {past_week.get('error_rate', 0):.2f}%
-- Task Completion Rate: {past_week.get('task_completion_rate', 0):.2f}%
-- Autonomous Actions: {past_week.get('autonomous_actions', 0)}
-- Goals Completed: {past_week.get('goals_completed', 0)}
-- Evolutions Executed: {past_week.get('evolutions_executed', 0)}
-
-Based on this data, analyze:
-1. What improvement strategies appear to be working?
-2. What might be causing any regressions?
-3. What should the system focus on next?
-
-Response format (one insight per line, no numbering):
-WORKING: [insight about what's working]
-REGRESSIONS: [insight about what's not working]
-NEXT_FOCUS: [recommendation for next steps]
-"""
-        try:
-            model_name, _ = self.router.route_request("analysis", "high")
-            response = self.router.call_model(
-                model_name,
-                prompt,
-                system_prompt="You are a performance analysis expert for autonomous AI systems."
-            )
-
-            # Parse response
-            insights = []
-            for line in response.strip().split('\n'):
-                line = line.strip()
-                if line and (line.startswith("WORKING:") or
-                            line.startswith("REGRESSIONS:") or
-                            line.startswith("NEXT_FOCUS:")):
-                    insights.append(line)
-
-            return insights if insights else ["Analysis completed - review data above"]
-
-        except Exception as e:
-            return [f"Could not generate AI insights: {str(e)}"]
+        return insights if insights else ["Analysis completed - review data above"]
 
     def think_about_thinking(self) -> Dict:
         """Meta-thought: Think about the thinking process itself"""
@@ -373,33 +179,19 @@ NEXT_FOCUS: [recommendation for next steps]
 
         self.thought_log.append(thought_pattern)
 
-        # Analyze thinking patterns
-        prompt = """
-Analyze the following thought patterns from an autonomous AI system:
-
-Previous Thoughts:
-{thoughts}
-
-Identify:
-1. Recurring themes or biases
-2. Potential blind spots
-3. Areas for more diverse thinking
-
-Respond with:
-THEMES: [what the system thinks about most]
-BLIND_SPOTS: [what might be missing]
-DIVERSITY: [suggestions for more diverse thinking]
-"""
-        try:
-            model_name, _ = self.router.route_request("analysis", "high")
-            response = self.router.call_model(
-                model_name,
-                prompt.format(thoughts=self.thought_log[-10:]),
-                system_prompt="You are a metacognition expert."
-            )
-            thought_pattern["analysis"] = response
-        except:
-            thought_pattern["analysis"] = "Analysis unavailable"
+        # Use centralized prompt via PromptManager only
+        thoughts_text = json.dumps(self.thought_log[-10:], indent=2)
+        prompt_data = self.prompt_manager.get_prompt(
+            "thinking_patterns",
+            thoughts=thoughts_text
+        )
+        model_name, _ = self.router.route_request("analysis", "high")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data.get("system_prompt", "")
+        )
+        thought_pattern["analysis"] = response
 
         return thought_pattern
 

@@ -34,10 +34,12 @@ class PromptAnalyzer:
         self.base_path = Path(base_path)
         self.issues: List[PromptIssue] = []
         self.prompt_manager_patterns = self._load_prompt_manager_patterns()
+        # Avoid scanning installer/setup scripts; scan prompt_optimizer as well
         self.excluded_files = {
-            'prompt_optimizer.py',
             'setup.py'
         }
+        # docstring spans for current file (start,end) pairs
+        self._docstring_spans: List[Tuple[int,int]] = []
         
     def _load_prompt_manager_patterns(self) -> Dict[str, str]:
         """Load patterns of existing prompts from PromptManager files."""
@@ -79,7 +81,7 @@ class PromptAnalyzer:
         
         # Sort issues by priority
         priority_order = {'high': 0, 'medium': 1, 'low': 2}
-        self.issues.sort(key=lambda x: priority_order[x.priority])
+        self.issues.sort(key=lambda x: priority_order.get(x.priority, 3))
         
         return self.issues
 
@@ -95,9 +97,16 @@ class PromptAnalyzer:
 
         # Check if file already uses PromptManager
         uses_prompt_manager = self._check_prompt_manager_usage(content)
-        
-        # Analyze AST for string literals
-        tree = ast.parse(content, filename=str(file_path))
+
+        # Parse AST safely
+        try:
+            tree = ast.parse(content, filename=str(file_path))
+        except SyntaxError as e:
+            print(f"Warning: Syntax error parsing {file_path}: {e}")
+            return
+
+        # Collect module/function/class docstring spans so they are ignored
+        self._docstring_spans = self._collect_docstring_spans(tree)
         
         # Find potential prompt strings in the AST
         self._find_string_literals(file_path, tree, lines, uses_prompt_manager)
@@ -108,8 +117,7 @@ class PromptAnalyzer:
     def _check_prompt_manager_usage(self, content: str) -> bool:
         """Check if file already uses PromptManager."""
         indicators = [
-            'from prompts import',
-            'from prompts.manager import',
+            'from modules.prompt_manager import',
             'PromptManager',
             'get_prompt_manager',
             'prompt_manager.get_prompt'
@@ -120,17 +128,72 @@ class PromptAnalyzer:
                 return True
         return False
 
+    def _collect_docstring_spans(self, tree: ast.AST) -> List[Tuple[int,int]]:
+        """Collect (start,end) line spans for module, class and function docstrings.
+
+        This lets the analyzer ignore docstrings which often look like prompts.
+        """
+        spans: List[Tuple[int,int]] = []
+        # Check module docstring (if present)
+        module_doc = ast.get_docstring(tree, clean=False)
+        if module_doc and len(tree.body) > 0:
+            first = tree.body[0]
+            if isinstance(first, ast.Expr) and hasattr(first, 'value'):
+                val = first.value
+                if (isinstance(val, ast.Str) or (isinstance(val, ast.Constant) and isinstance(val.value, str))):
+                    start = getattr(first, 'lineno', None)
+                    end = getattr(first, 'end_lineno', None) or (start + module_doc.count('\n'))
+                    if start:
+                        spans.append((start, end or start))
+
+        # Walk functions and classes
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                doc = ast.get_docstring(node, clean=False)
+                if doc and len(node.body) > 0:
+                    first = node.body[0]
+                    if isinstance(first, ast.Expr):
+                        start = getattr(first, 'lineno', None)
+                        end = getattr(first, 'end_lineno', None) or (start + doc.count('\n'))
+                        if start:
+                            spans.append((start, end or start))
+
+        return spans
+
+    def _is_in_docstring(self, lineno: int) -> bool:
+        """Return True if given lineno falls inside any collected docstring span."""
+        if lineno <= 0:
+            return False
+        for start, end in getattr(self, '_docstring_spans', []):
+            if start and end and start <= lineno <= end:
+                return True
+        return False
+
     def _find_string_literals(self, file_path: Path, tree: ast.AST, lines: List[str], uses_pm: bool):
         """Find string literals that might be prompts."""
-        
         for node in ast.walk(tree):
+            # Regular string literals
             if isinstance(node, ast.Str):  # Python 3.7 and earlier
-                self._check_string_node(file_path, node, node.s, lines, uses_pm)
-            elif isinstance(node, ast.Constant) and isinstance(node.value, str):  # Python 3.8+
-                self._check_string_node(file_path, node, node.value, lines, uses_pm)
+                if not self._is_in_docstring(getattr(node, 'lineno', 0)):
+                    self._check_string_node(file_path, node, node.s, lines, uses_pm)
+            # Python 3.8+: Constant string
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if not self._is_in_docstring(getattr(node, 'lineno', 0)):
+                    self._check_string_node(file_path, node, node.value, lines, uses_pm)
+            # f-strings (JoinedStr) - reconstruct text from source lines when possible
+            elif isinstance(node, ast.JoinedStr):
+                line_num = getattr(node, 'lineno', 0)
+                end_line = getattr(node, 'end_lineno', line_num)
+                if not self._is_in_docstring(line_num) and 0 < line_num <= len(lines):
+                    try:
+                        snippet = '\n'.join(lines[line_num - 1:end_line])
+                    except Exception:
+                        snippet = lines[line_num - 1].strip()
+                    self._check_string_node(file_path, node, snippet, lines, uses_pm)
 
     def _check_string_node(self, file_path: Path, node: ast.AST, string_value: str, lines: List[str], uses_pm: bool):
         """Check if a string node contains a prompt."""
+        # Ignore short strings and docstrings
         if not string_value or len(string_value) < 50:
             return
             
@@ -202,7 +265,7 @@ class PromptAnalyzer:
                     prompt_arg = self._get_prompt_argument(node)
                     if prompt_arg:
                         line_num = getattr(node, 'lineno', 0)
-                        if line_num > 0:
+                        if line_num > 0 and not self._is_in_docstring(line_num):
                             context = self._get_context(lines, line_num - 1)
                             
                             # Get the actual prompt string if available
@@ -245,8 +308,16 @@ class PromptAnalyzer:
         elif isinstance(arg, ast.JoinedStr):  # f-string
             # Reconstruct f-string from lines
             line_num = getattr(arg, 'lineno', 0)
+            end_line = getattr(arg, 'end_lineno', line_num)
             if 0 < line_num <= len(lines):
-                return lines[line_num - 1].strip()
+                return '\n'.join(lines[line_num - 1:end_line]).strip()
+            return ''
+        elif isinstance(arg, ast.BinOp):
+            # Handle simple string concatenation across nodes by extracting source span
+            line_num = getattr(arg, 'lineno', 0)
+            end_line = getattr(arg, 'end_lineno', line_num)
+            if 0 < line_num <= len(lines):
+                return '\n'.join(lines[line_num - 1:end_line]).strip()
         return ''
 
     def _get_context(self, lines: List[str], line_idx: int, context_lines: int = 2) -> str:
@@ -367,7 +438,7 @@ class PromptAnalyzer:
             "",
             "After:",
             "```python",
-            "from prompts import get_prompt_manager",
+            "from modules.prompt_manager import get_prompt_manager",
             "",
             "pm = get_prompt_manager()",
             "prompt_data = pm.get_prompt(",

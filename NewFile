@@ -1,0 +1,4 @@
+please identify all prompts that are not used via the prompt manager
+and check what their purpose might be and where they should belong to.
+There must be a reason the prompt was created, so we need to find out what that reason is and if it is still relevant. If the prompt is no longer relevant, we can consider deleting it to keep our prompt manager organized and efficient. 
+If the prompt is still relevant, we should categorize it properly and ensure it is easily accessible for future use.

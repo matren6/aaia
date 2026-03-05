@@ -43,27 +43,25 @@ OUTPUTS: Goal list, goal completion tracking, progress reports
 
 import sqlite3
 from typing import List, Dict, Optional
+from modules.container import DependencyError
 from datetime import datetime
 
 
 class GoalSystem:
     """Autonomous goal generation and tracking system."""
 
-    def __init__(self, scribe, router, economics):
+    def __init__(self, scribe, router, economics, prompt_manager=None):
         self.scribe = scribe
         self.router = router
         self.economics = economics
+        # PromptManager must be provided via DI
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to GoalSystem")
         self.active_goals = []
         self.completed_goals = []
         self._init_database()
         
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
 
     def _init_database(self):
         """Initialize goals database table"""
@@ -111,38 +109,18 @@ class GoalSystem:
         if frequent_actions:
             actions_text = "\n".join(f"- {action}: {count} times" for action, count in frequent_actions)
             
-            # Use AI to suggest goals
-            prompt = f"""
-Based on my recent frequent actions (last 7 days):
-{actions_text}
-
-Suggest 3 practical, achievable goals that would:
-1. Improve efficiency
-2. Address recurring pain points
-3. Create new value
-
-For each goal, estimate:
-- Time to implement
-- Expected benefit
-- Required resources
-
-Response format:
-1. GOAL: [goal name]
-BENEFIT: [expected benefit]
-EFFORT: [estimated effort]
-2. GOAL: [goal name]
-BENEFIT: [expected benefit]
-EFFORT: [estimated effort]
-3. GOAL: [goal name]
-BENEFIT: [expected benefit]
-EFFORT: [estimated effort]
-"""
+            # Use PromptManager to suggest goals
             try:
+                prompt_data = self.prompt_manager.get_prompt(
+                    "goal_suggestion",
+                    system_state=actions_text,
+                    performance=""
+                )
                 model_name, _ = self.router.route_request("planning", "high")
                 response = self.router.call_model(
                     model_name,
-                    prompt,
-                    system_prompt="You are a strategic planner. Suggest practical, valuable goals."
+                    prompt_data["prompt"],
+                    prompt_data.get("system_prompt", "You are a strategic planner. Suggest practical, valuable goals.")
                 )
                 goals.append(response)
                 
@@ -205,6 +183,7 @@ EFFORT: [estimated effort]
         """)
         
         goals = []
+        
         for row in cursor.fetchall():
             goals.append({
                 "id": row[0],

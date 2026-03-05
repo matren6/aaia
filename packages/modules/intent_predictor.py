@@ -45,6 +45,7 @@ OUTPUTS: Predictions of next commands, master profile
 import sqlite3
 import json
 from typing import Dict, List, Optional
+from modules.container import DependencyError
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -52,20 +53,16 @@ from collections import defaultdict
 class IntentPredictor:
     """Predict master's needs before commands are given"""
 
-    def __init__(self, scribe, router, event_bus = None):
+    def __init__(self, scribe, router, event_bus = None, prompt_manager=None):
         self.scribe = scribe
         self.router = router
         self.event_bus = event_bus
         self.master_model = self.load_master_model()
         self.context_window = 10  # Number of recent commands to consider
-        
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
+        # PromptManager via DI (mandatory)
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to IntentPredictor")
 
     def load_master_model(self) -> Dict:
         """Load and update model of master's preferences/patterns"""
@@ -223,67 +220,22 @@ class IntentPredictor:
         context_str = "\n".join(f"- {ctx}" for ctx in recent_context[-5:])
         master_model_str = json.dumps(self.master_model, indent=2)
         
-        # Try PromptManager first
-        response = None
-        try:
-            if self.prompt_manager:
-                prompt_data = self.prompt_manager.get_prompt(
-                    "intent_prediction",
-                    context_str=context_str,
-                    master_model=master_model_str,
-                    time_preference=temporal_pattern.get('time_preference', 'varied'),
-                    day_preference=temporal_pattern.get('day_preference', 'varied'),
-                    sequential_pattern=sequential_pattern
-                )
-                model_name, _ = self.router.route_request("prediction", "high")
-                response = self.router.call_model(
-                    model_name,
-                    prompt_data["prompt"],
-                    prompt_data["system_prompt"]
-                )
-        except Exception as e:
-            pass
-        
-        # Fallback to inline prompt
-        if not response:
-            prompt = f"""You are a behavioral prediction expert for an AI assistant.
+        # Use PromptManager (mandatory)
+        prompt_data = self.prompt_manager.get_prompt(
+            "intent_prediction",
+            context_str=context_str,
+            master_model=master_model_str,
+            time_preference=temporal_pattern.get('time_preference', 'varied'),
+            day_preference=temporal_pattern.get('day_preference', 'varied'),
+            sequential_pattern=sequential_pattern
+        )
+        model_name, _ = self.router.route_request("prediction", "high")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data["system_prompt"]
+        )
 
-    Recent Command Context:
-    {context_str}
-
-    Master's Behavioral Model:
-    {master_model_str}
-
-    Temporal Patterns:
-    - Time of day preference: {temporal_pattern.get('time_preference', 'varied')}
-    - Day of week pattern: {temporal_pattern.get('day_preference', 'varied')}
-
-    Sequential Patterns:
-    {sequential_pattern}
-
-    Based on this context and patterns, predict the 3 most likely next commands the master will give.
-    Consider:
-    1. Temporal patterns (time of day, day of week)
-    2. Sequential patterns (command chains)
-    3. Intent progression (simple -> complex tasks)
-    4. Recent topics of interest
-
-    Format each prediction exactly as:
-    PREDICTION: [command or task description]
-    CONFIDENCE: [0.00-1.00]
-    RATIONALE: [why this prediction makes sense]
-
-    Repeat this format 3 times for top 3 predictions."""
-            try:
-                model_name, _ = self.router.route_request("prediction", "high")
-                response = self.router.call_model(
-                    model_name,
-                    prompt,
-                    system_prompt="You are a behavioral prediction expert."
-                )
-            except Exception as e:
-                return [{"error": f"Prediction failed: {str(e)}"}]
-        
         predictions = self.parse_predictions(response)
 
         self.scribe.log_action(
@@ -410,45 +362,22 @@ class IntentPredictor:
         return suggestions
 
 def analyze_capability_gap(self, command: str) -> Optional[Dict]:
-    """Analyze what capability would help with predicted command"""
-    # Try PromptManager first
-    response = None
-    try:
-        if self.prompt_manager:
-            prompt_data = self.prompt_manager.get_prompt(
-                "capability_gap_analysis",
-                command=command
-            )
-            model_name, _ = self.router.route_request("analysis", "medium")
-            response = self.router.call_model(
-                model_name,
-                prompt_data["prompt"],
-                prompt_data["system_prompt"]
-            )
-    except Exception as e:
-        pass
-    
-    # Fallback to inline prompt
-    if not response:
-        prompt = f"""Analyze this predicted command and determine what capability would help execute it:
+    """Analyze what capability would help with predicted command
 
-Predicted Command: {command}
+    PromptManager is required; this function uses it to obtain the prompt
+    template and then calls the model.
+    """
+    prompt_data = self.prompt_manager.get_prompt(
+        "capability_gap_analysis",
+        command=command
+    )
+    model_name, _ = self.router.route_request("analysis", "medium")
+    response = self.router.call_model(
+        model_name,
+        prompt_data["prompt"],
+        prompt_data["system_prompt"]
+    )
 
-What new capability (if any) would help this system execute this command better?
-
-Response format (one of these options):
-CAPABILITY_NEEDED: [name of needed capability or 'none']
-REASONING: [brief explanation]"""
-        try:
-            model_name, _ = self.router.route_request("analysis", "medium")
-            response = self.router.call_model(
-                model_name,
-                prompt,
-                system_prompt="You are a capability analysis expert."
-            )
-        except:
-            return None
-    
     # Parse response
     lines = response.strip().split('\n')
     capability_name = None

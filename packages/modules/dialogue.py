@@ -41,19 +41,22 @@ OUTPUTS: Tuple of (understanding, risks, alternatives)
 from typing import Optional, Tuple, List
 from .scribe import Scribe
 from .router import ModelRouter
+from modules.container import DependencyError
 
 class DialogueManager:
-    def __init__(self, scribe: Scribe, router: ModelRouter):
+    def __init__(self, scribe: Scribe, router: ModelRouter, prompt_manager=None):
         self.scribe = scribe
         self.router = router
-        
-        # Initialize PromptManager
-        self.prompt_manager = None
+        # PromptManager should be provided via DI (mandatory)
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to DialogueManager")
+
+        # Ensure required prompt template is registered
         try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
+            self.prompt_manager.get_prompt_raw("command_understanding")
+        except Exception:
+            raise DependencyError("Required prompt 'command_understanding' not registered in PromptManager")
         
     def structured_argument(self, master_command: str, context: str = "") -> Tuple[str, List[str], List[str]]:
         """Implement structured argument protocol
@@ -69,55 +72,18 @@ class DialogueManager:
             outcome="pending"
         )
         
-        # Use model to analyze command - try PromptManager first
-        response = None
-        system_prompt = "You are a critical thinking partner analyzing commands for risks and better approaches."
-
-        try:
-            if self.prompt_manager:
-                prompt_data = self.prompt_manager.get_prompt(
-                    "command_understanding",
-                    command=master_command,
-                    context=context
-                )
-                model_name, _ = self.router.route_request("reasoning", "high")
-                response = self.router.call_model(
-                    model_name,
-                    prompt_data["prompt"],
-                    prompt_data["system_prompt"]
-                )
-        except Exception as e:
-            self.scribe.log_action(
-                "Dialogue analysis",
-                f"PromptManager failed: {str(e)}, using inline prompt",
-                "warning"
-            )
-        
-        # Fallback to inline prompt if PromptManager fails
-        if not response:
-            model_name, model_info = self.router.route_request("reasoning", "high")
-
-            analysis_prompt = f"""
-            As an AI partner analyzing a master's command, perform this analysis:
-
-            Master's Command: {master_command}
-            Context: {context}
-
-            1. Understanding: What is the master's likely goal?
-            2. Risk/Flaw Analysis: What potential issues exist?
-            3. Alternative Approaches: What better methods might achieve the goal?
-
-            Format your response as:
-            UNDERSTANDING: [your analysis]
-            RISKS: [list of risks]
-            ALTERNATIVES: [list of alternatives]
-            """
-
-            response = self.router.call_model(
-                model_name,
-                analysis_prompt,
-                system_prompt=system_prompt
-            )
+        # Use centralized PromptManager prompt only
+        prompt_data = self.prompt_manager.get_prompt(
+            "command_understanding",
+            command=master_command,
+            context=context
+        )
+        model_name, _ = self.router.route_request("reasoning", "high")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data.get("system_prompt", "")
+        )
 
         # Parse response
         understanding = ""
@@ -125,7 +91,7 @@ class DialogueManager:
         alternatives = []
         
         # Simple parsing (can be enhanced)
-        lines = response.split('\n')
+        lines = response.split('\n') if response else []
         current_section = None
         
         for line in lines:

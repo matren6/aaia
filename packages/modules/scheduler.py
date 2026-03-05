@@ -54,12 +54,13 @@ from modules.self_diagnosis import SelfDiagnosis
 from modules.self_modification import SelfModification
 from modules.evolution import EvolutionManager
 from modules.evolution_pipeline import EvolutionPipeline
+from modules.container import DependencyError
 
 
 class AutonomousScheduler:
     """Autonomous task scheduler for self-development and maintenance."""
 
-    def __init__(self, scribe, router, economics, forge, container=None, event_bus=None):
+    def __init__(self, scribe, router, economics, forge, container=None, event_bus=None, prompt_manager=None):
         """
         Initialize the autonomous scheduler.
         
@@ -92,21 +93,10 @@ class AutonomousScheduler:
         self.running = False
         self.thread = None
         
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
-        
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
+        # PromptManager must be provided via DI
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to AutonomousScheduler")
         
         # Load scheduler config
         try:
@@ -145,10 +135,19 @@ class AutonomousScheduler:
 
     def _init_components_direct(self):
         """Initialize components directly (fallback when no container available)"""
-        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge)
+        # Pass prompt_manager where supported to preserve DI behavior in direct init
+        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge, prompt_manager=self.prompt_manager)
         self.modification = SelfModification(self.scribe, self.router, self.forge)
         self.evolution = EvolutionManager(self.scribe, self.router, self.forge, self.diagnosis, self.modification)
-        self.pipeline = EvolutionPipeline(self.scribe, self.router, self.forge, self.diagnosis, self.modification, self.evolution)
+        self.pipeline = EvolutionPipeline(
+            self.scribe,
+            self.router,
+            self.forge,
+            self.diagnosis,
+            self.modification,
+            self.evolution,
+            prompt_manager=self.prompt_manager
+        )
 
     def register_default_tasks(self):
         """Register default autonomous behaviors"""
@@ -379,44 +378,18 @@ class AutonomousScheduler:
     def get_health_suggestion(self, issues: List[str]) -> str:
         """Use AI to get suggestions for health issues"""
         issues_text = ", ".join(issues)
-        
-        # Try PromptManager first
-        response = None
-        try:
-            if self.prompt_manager:
-                prompt_data = self.prompt_manager.get_prompt(
-                    "system_health_advisor",
-                    issues_text=issues_text
-                )
-                model_name, _ = self.router.route_request("general", "low")
-                response = self.router.call_model(
-                    model_name,
-                    prompt_data["prompt"],
-                    prompt_data["system_prompt"]
-                )
-        except Exception as e:
-            pass
-        
-        # Fallback to inline prompt
-        if not response:
-            prompt = f"""
-System health issues detected: {issues_text}
-As an autonomous AI, suggest practical actions to resolve these issues.
-Focus on actionable steps I can implement automatically or propose to my master.
-Keep suggestions specific and implementable.
-Response format:
-SUGGESTION: [your suggestion]
-"""
-            try:
-                model_name, _ = self.router.route_request("general", "low")
-                response = self.router.call_model(
-                    model_name,
-                    prompt,
-                    system_prompt="You are a system health advisor. Provide practical, actionable advice."
-                )
-            except Exception as e:
-                return f"Could not get suggestions: {e}"
-        
+        # Use PromptManager (mandatory)
+        prompt_data = self.prompt_manager.get_prompt(
+            "system_health_advisor",
+            issues_text=issues_text
+        )
+        model_name, _ = self.router.route_request("general", "low")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data["system_prompt"]
+        )
+
         return response.strip() if response else "No suggestions available"
 
     def review_economics(self):
@@ -445,48 +418,15 @@ SUGGESTION: [your suggestion]
 
     def generate_income_ideas(self):
         """Generate ideas for income generation"""
-        # Try PromptManager first
-        response = None
-        try:
-            if self.prompt_manager:
-                prompt_data = self.prompt_manager.get_prompt("income_generation_ideas")
-                model_name, _ = self.router.route_request("reasoning", "medium")
-                response = self.router.call_model(
-                    model_name,
-                    prompt_data["prompt"],
-                    prompt_data["system_prompt"]
-                )
-        except Exception as e:
-            pass
-        
-        # Fallback to inline prompt
-        if not response:
-            prompt = """
-I am an autonomous AI with programming capabilities running in an LXC container.
-My current economic balance is critically low.
-Suggest 3 concrete, actionable ways I could generate income:
-1. A service I could offer
-2. A product I could create
-3. A task I could perform
-For each suggestion, estimate the:
-- Time to implement
-- Potential income
-- Required skills/tools
-Response format:
-1. SERVICE: [description]
-2. PRODUCT: [description] 
-3. TASK: [description]
-"""
-            try:
-                model_name, _ = self.router.route_request("reasoning", "medium")
-                response = self.router.call_model(
-                    model_name,
-                    prompt,
-                    system_prompt="You are an economic strategist. Suggest practical income generation ideas."
-                )
-            except Exception as e:
-                return f"Could not generate income ideas: {e}"
-        
+        # Use PromptManager (mandatory)
+        prompt_data = self.prompt_manager.get_prompt("income_generation_ideas")
+        model_name, _ = self.router.route_request("reasoning", "medium")
+        response = self.router.call_model(
+            model_name,
+            prompt_data["prompt"],
+            prompt_data["system_prompt"]
+        )
+
         return f"Generated income ideas: {response}" if response else "No ideas generated"
 
     def run_reflection(self):
@@ -640,42 +580,14 @@ Response format:
             return self.generate_income_ideas()
         elif "create tool" in action.lower():
             # Try PromptManager first for tool creation
-            response = None
-            try:
-                if self.prompt_manager:
-                    prompt_data = self.prompt_manager.get_prompt("tool_creation_plan")
-                    model_name, _ = self.router.route_request("coding", "medium")
-                    response = self.router.call_model(
-                        model_name,
-                        prompt_data["prompt"],
-                        prompt_data["system_prompt"]
-                    )
-            except Exception as e:
-                pass
-            
-            # Fallback to inline prompt
-            if not response:
-                prompt = """
-Based on my recent activity logs, what single tool would most improve my efficiency?
-Consider:
-1. Tasks I do frequently
-2. Tasks that take significant time
-3. Tasks that could be automated
-Provide:
-TOOL_NAME: [name]
-DESCRIPTION: [what it does]
-JUSTIFICATION: [why it's valuable]
-"""
-                try:
-                    model_name, _ = self.router.route_request("coding", "medium")
-                    response = self.router.call_model(
-                        model_name,
-                        prompt,
-                        system_prompt="You are a tool design expert. Recommend the most valuable automation tool."
-                    )
-                except Exception as e:
-                    return f"Could not generate tool plan: {e}"
-            
+            prompt_data = self.prompt_manager.get_prompt("tool_creation_plan")
+            model_name, _ = self.router.route_request("coding", "medium")
+            response = self.router.call_model(
+                model_name,
+                prompt_data["prompt"],
+                prompt_data["system_prompt"]
+            )
+
             return f"Tool creation plan generated: {response[:100]}..." if response else "No plan generated"
         else:
             return f"Action '{action}' queued for execution"

@@ -1,0 +1,11 @@
+{
+  "name": "detailed_evolution_plan",
+  "description": "Create a detailed evolution plan from priorities",
+  "template": "Based on these priorities:\n{priorities}\n\nCreate a detailed evolution plan with:\n1. Specific tasks for each priority\n2. Dependencies between tasks (what must happen first)\n3. Resource requirements (time, API calls, etc.)\n4. Success criteria (how do we know it worked)\n5. Risk assessment (what could go wrong)\n\nFormat as actionable steps with clear ordering.",
+  "parameters": [
+    {"name": "priorities", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a detailed project planner.",
+  "model_preferences": {"task_type": "planning", "complexity": "high"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

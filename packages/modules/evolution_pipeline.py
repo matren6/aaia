@@ -60,8 +60,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+from modules.container import DependencyError
+
 class EvolutionPipeline:
-    def __init__(self, scribe, router, forge, diagnosis, modification, evolution, event_bus=None):
+    def __init__(self, scribe, router, forge, diagnosis, modification, evolution, event_bus=None, prompt_manager=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
@@ -71,16 +73,15 @@ class EvolutionPipeline:
         self.event_bus = event_bus
         self.pipeline_state = "idle"
         self.evolution_log = []
-        
-        # Initialize PromptOptimizer if available
+
+        # PromptManager and PromptOptimizer via DI or created if available
+        self.prompt_manager = prompt_manager
         self.prompt_optimizer = None
-        self.prompt_manager = None
         try:
-            from prompts import get_prompt_manager
-            from modules.prompt_optimizer import PromptOptimizer
-            self.prompt_manager = get_prompt_manager()
-            self.prompt_optimizer = PromptOptimizer(self.prompt_manager, self.router, self.scribe)
-        except ImportError as e:
+            if self.prompt_manager is not None:
+                from modules.prompt_optimizer import PromptOptimizer
+                self.prompt_optimizer = PromptOptimizer(self.prompt_manager, self.router, self.scribe)
+        except Exception as e:
             print(f"Warning: Prompt optimization not available: {e}")
         
     def run_autonomous_evolution(self):
@@ -211,33 +212,42 @@ class EvolutionPipeline:
         if not tasks:
             return []
             
-        # Use AI to prioritize
-        prompt = f"""
-        Diagnosed system issues:
-        {json.dumps(diagnosis.get('bottlenecks', []), indent=2)}
-        
-        Improvement opportunities:
-        {chr(10).join([f'- {op.get("action", "")}' for op in diagnosis.get('improvement_opportunities', [])])}
-        
-        Proposed evolution tasks:
-        {chr(10).join([f'- {task.get("task", "")}' for task in tasks])}
-        
-        Prioritize these tasks based on:
-        1. Impact on system stability
-        2. Effort required
-        3. Expected benefit
-        4. Dependencies between tasks
-        
-        Return ONLY a numbered list of task names in priority order.
-        """
-        
-        model_name, _ = self.router.route_request("analysis", "high")
-        response = self.router.call_model(
-            model_name,
-            prompt,
-            system_prompt="You are a project prioritization expert. Return only the prioritized list."
+        # Build intermediate pieces to avoid nested f-strings and improve readability
+        bottlenecks_json = json.dumps(diagnosis.get("bottlenecks", []), indent=2)
+
+        improvement_lines = [
+            f"- {op.get('action', '')}"
+            for op in diagnosis.get("improvement_opportunities", [])
+        ]
+        improvement_text = "\n".join(improvement_lines)
+
+        task_lines = [
+            f"- {task.get('task', '')}"
+            for task in tasks
+        ]
+        tasks_text = "\n".join(task_lines)
+
+        analysis_text = (
+            f"Diagnosed system issues:\n{bottlenecks_json}\n\n"
+            f"Improvement opportunities:\n{improvement_text}\n\n"
+            f"Proposed evolution tasks:\n{tasks_text}\n\n"
+            "Prioritize these tasks based on: 1. Impact on system stability 2. Effort required "
+            "3. Expected benefit 4. Dependencies between tasks"
         )
-        
+
+        # Require centralized prompt template for prioritization
+        if not self.prompt_manager:
+            raise DependencyError("PromptManager is required to prioritize tasks via centralized templates")
+
+        try:
+            self.prompt_manager.get_prompt_raw("evolution_task_creation")
+        except Exception:
+            raise DependencyError("Required prompt 'evolution_task_creation' not registered in PromptManager")
+
+        prompt_data = self.prompt_manager.get_prompt("evolution_task_creation", analysis=analysis_text)
+        model_name, _ = self.router.route_request("analysis", "high")
+        response = self.router.call_model(model_name, prompt_data["prompt"], prompt_data.get("system_prompt", ""))
+
         # Extract task names from response
         prioritized_names = []
         for line in response.strip().split('\n'):

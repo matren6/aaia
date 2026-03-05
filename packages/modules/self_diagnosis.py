@@ -49,12 +49,13 @@ import inspect
 import sys
 from typing import Dict, List, Tuple, Optional, Any
 from datetime import datetime
+from modules.container import DependencyError
 
 
 class SelfDiagnosis:
     """System self-diagnosis and assessment module."""
 
-    def __init__(self, scribe, router, forge, goals=None, event_bus=None):
+    def __init__(self, scribe, router, forge, goals=None, event_bus=None, prompt_manager=None):
         """Initialize SelfDiagnosis.
         
         Args:
@@ -71,13 +72,8 @@ class SelfDiagnosis:
         self.event_bus = event_bus
         self.diagnosis_interval = 3600  # 1 hour in seconds
         
-        # Initialize PromptManager
-        self.prompt_manager = None
-        try:
-            from prompts import get_prompt_manager
-            self.prompt_manager = get_prompt_manager()
-        except ImportError:
-            pass
+        # PromptManager via DI
+        self.prompt_manager = prompt_manager
 
     def perform_full_diagnosis(self) -> Dict:
         """Comprehensive system self-assessment"""
@@ -255,51 +251,23 @@ class SelfDiagnosis:
         frequent_actions = cursor.fetchall()
         conn.close()
 
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to SelfDiagnosis")
+
         for action, freq in frequent_actions:
-            # Use AI to suggest improvement - try PromptManager first
-            suggestion = None
-            try:
-                if self.prompt_manager:
-                    prompt_data = self.prompt_manager.get_prompt(
-                        "improvement_opportunity",
-                        action=action[:100],
-                        frequency=freq
-                    )
-                    model_name, _ = self.router.route_request("analysis", "medium")
-                    suggestion = self.router.call_model(
-                        model_name,
-                        prompt_data["prompt"],
-                        prompt_data["system_prompt"]
-                    )
-            except Exception:
-                pass
-            
-            if not suggestion:
-                # Fallback to inline prompt
-                prompt = f"""
-Action performed frequently in the last week: '{action[:100]}'
-Frequency: {freq} times
+            # Use PromptManager (mandatory)
+            prompt_data = self.prompt_manager.get_prompt(
+                "improvement_opportunity",
+                action=action[:100],
+                frequency=freq
+            )
+            model_name, _ = self.router.route_request("analysis", "medium")
+            suggestion = self.router.call_model(
+                model_name,
+                prompt_data["prompt"],
+                prompt_data["system_prompt"]
+            )
 
-Suggest ways to improve this:
-1. AUTOMATION: How could this be automated?
-2. OPTIMIZATION: How could it be faster/cheaper?
-3. ELIMINATION: Is this unnecessary?
-
-Response format:
-AUTOMATION: [suggestion]
-OPTIMIZATION: [suggestion]
-ELIMINATION: [if applicable]
-"""
-                try:
-                    model_name, _ = self.router.route_request("analysis", "medium")
-                    suggestion = self.router.call_model(
-                        model_name,
-                        prompt,
-                        system_prompt="You are a process optimization expert."
-                    )
-                except Exception:
-                    pass
-            
             if suggestion:
                 opportunities.append({
                     "action": action[:50],
@@ -428,56 +396,25 @@ ELIMINATION: [if applicable]
                             "suggestion": "Consider refactoring"
                         })
             
-            # Get AI suggestions for improvement
+            # Get AI suggestions for improvement (PromptManager mandatory)
             if analysis["functions"]:
-                suggestions = None
-                try:
-                    if self.prompt_manager:
-                        prompt_data = self.prompt_manager.get_prompt(
-                            "code_improvement_analysis",
-                            module_name=module_name,
-                            lines_of_code=analysis["lines_of_code"],
-                            function_count=len(analysis["functions"]),
-                            complex_functions=[c["function"] for c in analysis["complexities"]]
-                        )
-                        model_name, _ = self.router.route_request("coding", "high")
-                        suggestions = self.router.call_model(
-                            model_name,
-                            prompt_data["prompt"],
-                            prompt_data["system_prompt"]
-                        )
-                except Exception:
-                    pass
-                
-                if not suggestions:
-                    # Fallback to inline prompt
-                    improvement_prompt = f"""
-Analyze this Python module for improvement opportunities:
-Module: {module_name}
-Lines: {analysis['lines_of_code']}
-Functions: {len(analysis['functions'])}
-High complexity functions: {[c['function'] for c in analysis['complexities']]}
+                if self.prompt_manager is None:
+                    raise DependencyError("PromptManager is required and must be provided via the DI container to SelfDiagnosis")
 
-Suggest specific improvements in these areas:
-1. Code structure/organization
-2. Performance optimizations
-3. Error handling improvements
-4. Documentation/comments
+                prompt_data = self.prompt_manager.get_prompt(
+                    "code_improvement_analysis",
+                    module_name=module_name,
+                    lines_of_code=analysis["lines_of_code"],
+                    function_count=len(analysis["functions"]),
+                    complex_functions=[c["function"] for c in analysis["complexities"]]
+                )
+                model_name, _ = self.router.route_request("coding", "high")
+                suggestions = self.router.call_model(
+                    model_name,
+                    prompt_data["prompt"],
+                    prompt_data["system_prompt"]
+                )
 
-Be specific and actionable.
-Response format (one line per suggestion):
-- [area]: [suggestion]
-"""
-                    try:
-                        model_name, _ = self.router.route_request("coding", "high")
-                        suggestions = self.router.call_model(
-                            model_name,
-                            improvement_prompt,
-                            system_prompt="You are a code review expert."
-                        )
-                    except Exception:
-                        pass
-                
                 if suggestions:
                     analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip()]
             

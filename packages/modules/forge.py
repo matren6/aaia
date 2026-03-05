@@ -53,11 +53,13 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Callable, Optional
 
+from modules.container import DependencyError
+
 
 class Forge:
     """Dynamic tool creation system for extending AI capabilities."""
 
-    def __init__(self, router, scribe, tools_dir: str = None, event_bus=None):
+    def __init__(self, router, scribe, tools_dir: str = None, event_bus=None, prompt_manager=None):
         """
         Initialize the Forge with router and scribe dependencies.
         
@@ -67,9 +69,11 @@ class Forge:
             tools_dir: Directory to store tools (defaults to config)
             event_bus: Optional EventBus for publishing events
         """
+
         self.router = router
         self.scribe = scribe
         self.event_bus = event_bus
+        self.prompt_manager = prompt_manager
         
         # Load tools directory from config if not provided
         if tools_dir is None:
@@ -200,36 +204,28 @@ class Forge:
         Returns:
             Generated Python code
         """
-        # Use router for code generation
-        prompt = f"""
-Create a Python tool named '{name}' that does the following: {description}
+        # Require centralized prompt template for forge code generation
+        if not self.prompt_manager:
+            raise DependencyError("PromptManager is required to generate tool code via centralized templates")
 
-Requirements:
-1. The tool should be a single function named 'execute' that takes keyword arguments (**kwargs)
-2. The function should return a result dictionary
-3. Include proper docstrings
-4. The code should be safe, well-documented, and follow best practices
-5. Do NOT include any markdown formatting, just pure Python code
-6. Do NOT use input(), system calls, or file system operations that could be dangerous
-
-Provide only the Python code for the execute function:
-"""
-        
-        # Use router to get appropriate model for coding
-        # First try to get a coding-capable model
         try:
-            model_name, model_info = self.router.route_request("coding", "high")
+            # Ensure prompt exists
+            self.prompt_manager.get_prompt_raw("forge_code_generation")
         except Exception:
-            # Fallback: try general request
-            model_name, model_info = self.router.route_request("general", "medium")
-        
-        # Call the model
-        response = self.router.call_model(
-            model_name, 
-            prompt, 
-            system_prompt="You are a code generation assistant. Generate clean, safe, well-documented Python code. Return only the code, no markdown or explanations."
+            raise DependencyError("Required prompt 'forge_code_generation' not registered in PromptManager")
+
+        pm_prompt = self.prompt_manager.get_prompt(
+            "forge_code_generation",
+            name=name,
+            description=description
         )
-        
+        model_name, model_info = self.router.route_request("coding", "high")
+        response = self.router.call_model(
+            model_name,
+            pm_prompt.get("prompt", ""),
+            pm_prompt.get("system_prompt", "You are a code generation assistant. Generate clean, safe, well-documented Python code. Return only the code, no markdown or explanations.")
+        )
+
         # Extract code from response (remove any markdown formatting)
         code = self._extract_code_from_response(response)
         

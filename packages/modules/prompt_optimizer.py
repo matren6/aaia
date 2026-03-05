@@ -77,32 +77,28 @@ class PromptOptimizer:
         except Exception as e:
             self.scribe.log_action(
                 "Prompt optimization attempt",
-                f"Using inline fallback: {str(e)}",
+                f"Using PromptManager attempt failed: {str(e)}",
                 "warning"
             )
         
-        # Fallback to inline optimization if PromptManager fails
+        # Do not use inline hardcoded prompts. If suggestions were not produced
+        # above, attempt to fetch the centralized `prompt_optimization` template
+        # from PromptManager and use it. If that fails, log and raise.
         if not suggestions:
-            inline_prompt = f"""Analyze this prompt and suggest improvements:
-
-Current Prompt:
-{current_template}
-
-Performance Issues:
-{chr(10).join(performance_metrics.get('issues', ['No issues specified']))}
-
-Success Criteria:
-{performance_metrics.get('success_criteria', 'Improve clarity and effectiveness')}
-
-Provide optimized prompt that addresses the issues:
-"""
             try:
-                model_name, _ = self.router.route_request("optimization", "high")
-                suggestions = self.router.call_model(
-                    model_name,
-                    inline_prompt,
-                    system_prompt="You are a prompt engineering expert."
-                )
+                if self.prompt_manager:
+                    opt_prompt = self.prompt_manager.get_prompt(
+                        "prompt_optimization",
+                        current_prompt=current_template,
+                        performance_issues=performance_metrics.get("issues", []),
+                        success_criteria=performance_metrics.get("success_criteria", "Improve clarity and effectiveness")
+                    )
+                    model_name, _ = self.router.route_request("optimization", "high")
+                    suggestions = self.router.call_model(
+                        model_name,
+                        opt_prompt["prompt"],
+                        opt_prompt.get("system_prompt", "You are a prompt engineering expert.")
+                    )
             except Exception as e:
                 self.scribe.log_action(
                     "Prompt optimization failed",

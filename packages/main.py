@@ -41,11 +41,7 @@ from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
 from modules.prompt_optimizer import PromptOptimizer
 
-# Prompt management
-try:
-    from prompts import get_prompt_manager
-except ImportError:
-    get_prompt_manager = None
+# Prompt management is provided via the DI container (PromptManager)
 
 class Arbiter:
     def __init__(self):
@@ -120,6 +116,8 @@ class Arbiter:
         self.environment_explorer = modules.get('EnvironmentExplorer')
         self.strategy_optimizer = modules.get('StrategyOptimizer')
         self.orchestrator = modules.get('EvolutionOrchestrator')
+        # PromptManager from modules
+        self.prompt_manager = modules.get('PromptManager')
         
     def init_hierarchy(self):
         """Initialize hierarchy of needs"""
@@ -819,41 +817,44 @@ Evolution Commands:
 
     def show_prompts(self):
         """List all available prompts"""
-        try:
-            pm = get_prompt_manager()
-            prompts = pm.list_prompts()
-            
-            print(f"\n=== Available Prompts ({len(prompts)}) ===")
-            for prompt in prompts:
-                print(f"  • {prompt['name']} [{prompt['category']}]")
-                print(f"    {prompt['description'][:60]}..." if len(prompt.get('description', '')) > 60 else f"    {prompt.get('description', 'No description')}")
-                print(f"    Version: {prompt.get('version', '1.0')}")
-                print()
-        except Exception as e:
-            print(f"Error loading prompts: {e}")
-            print("PromptManager not available. Make sure prompts module is installed.")
+        pm = getattr(self, 'prompt_manager', None)
+        if pm is None:
+            print("PromptManager not available. Ensure system is initialized via SystemBuilder so PromptManager is provided by the DI container.")
+            return
+
+        prompts = pm.list_prompts()
+        print(f"\n=== Available Prompts ({len(prompts)}) ===")
+        for prompt in prompts:
+            print(f"  • {prompt['name']} [{prompt['category']}]")
+            print(f"    {prompt['description'][:60]}..." if len(prompt.get('description', '')) > 60 else f"    {prompt.get('description', 'No description')}")
+            print(f"    Version: {prompt.get('version', '1.0')}")
+            print()
 
     def show_prompts_by_category(self):
         """List prompts grouped by category"""
-        try:
-            pm = get_prompt_manager()
-            categories = pm.list_categories()
-            
-            print(f"\n=== Prompts by Category ===")
-            for category in categories:
-                prompts = pm.list_prompts(category=category)
-                print(f"\n[{category.upper()}] ({len(prompts)} prompts)")
-                for p in prompts:
-                    print(f"  • {p['name']}: {p['description'][:40]}..." if len(p.get('description', '')) > 40 else f"  • {p['name']}: {p.get('description', 'No description')}")
-        except Exception as e:
-            print(f"Error: {e}")
+        pm = getattr(self, 'prompt_manager', None)
+        if pm is None:
+            print("PromptManager not available. Ensure system is initialized via SystemBuilder so PromptManager is provided by the DI container.")
+            return
+
+        categories = pm.list_categories()
+        print(f"\n=== Prompts by Category ===")
+        for category in categories:
+            prompts = pm.list_prompts(category=category)
+            print(f"\n[{category.upper()}] ({len(prompts)} prompts)")
+            for p in prompts:
+                print(f"  • {p['name']}: {p['description'][:40]}..." if len(p.get('description', '')) > 40 else f"  • {p['name']}: {p.get('description', 'No description')}")
 
     def show_prompt_detail(self, prompt_name: str):
         """Show detailed information about a prompt"""
+        pm = getattr(self, 'prompt_manager', None)
+        if pm is None:
+            print("PromptManager not available. Ensure system is initialized via SystemBuilder so PromptManager is provided by the DI container.")
+            return
+
         try:
-            pm = get_prompt_manager()
             prompt_data = pm.get_prompt_raw(prompt_name)
-            
+
             print(f"\n=== Prompt: {prompt_name} ===")
             print(f"Description: {prompt_data.get('description', 'N/A')}")
             print(f"Category: {prompt_data.get('category', 'N/A')}")
@@ -871,14 +872,22 @@ Evolution Commands:
                 print(f"  • {param['name']} ({param.get('type', 'string')}) - {required}")
         except ValueError as e:
             print(f"Prompt not found: {prompt_name}")
-            print(f"Available prompts: {', '.join(get_prompt_manager().list_prompts())}")
+            try:
+                available = ', '.join(p['name'] for p in pm.list_prompts())
+                print(f"Available prompts: {available}")
+            except Exception:
+                pass
         except Exception as e:
             print(f"Error: {e}")
 
     def update_prompt(self, prompt_name: str):
         """Update a prompt interactively"""
+        pm = getattr(self, 'prompt_manager', None)
+        if pm is None:
+            print("PromptManager not available. Ensure system is initialized via SystemBuilder so PromptManager is provided by the DI container.")
+            return
+
         try:
-            pm = get_prompt_manager()
             prompt_data = pm.get_prompt_raw(prompt_name)
             
             print(f"\n=== Update Prompt: {prompt_name} ===")
@@ -904,7 +913,10 @@ Evolution Commands:
         print(f"\n=== Optimizing Prompt: {prompt_name} ===")
         
         try:
-            pm = get_prompt_manager()
+            pm = getattr(self, 'prompt_manager', None)
+            if pm is None:
+                print("PromptManager not available. Ensure system is initialized via SystemBuilder so PromptManager is provided by the DI container.")
+                return
             
             # Get performance metrics (simplified)
             performance_metrics = {

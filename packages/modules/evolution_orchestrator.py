@@ -52,13 +52,15 @@ import time
 from typing import Dict, List, Optional
 from datetime import datetime
 
+from modules.container import DependencyError
+
 
 class EvolutionOrchestrator:
     """Orchestrate complex, multi-step evolution processes"""
 
     def __init__(self, scribe, router, forge, diagnosis, modification,
                  metacognition, capability_discovery, intent_predictor,
-                 environment_explorer, strategy_optimizer=None, event_bus=None):
+                 environment_explorer, strategy_optimizer=None, event_bus=None, prompt_manager=None):
         
         self.scribe = scribe
         self.router = router
@@ -74,6 +76,20 @@ class EvolutionOrchestrator:
         
         self.evolution_history = []
         self.current_evolution = None
+        self.prompt_manager = prompt_manager
+
+        # Probe centralized prompts used by this orchestrator
+        self._pm_prompts = set()
+        try:
+            if self.prompt_manager is not None:
+                for _name in ("system_assessment_synthesis", "detailed_evolution_plan", "evolution_lessons_reflection"):
+                    try:
+                        self.prompt_manager.get_prompt_raw(_name)
+                        self._pm_prompts.add(_name)
+                    except Exception:
+                        pass
+        except Exception:
+            self._pm_prompts = set()
 
     def orchestrate_major_evolution(self) -> Dict:
         """Orchestrate a major evolution cycle"""
@@ -150,56 +166,29 @@ class EvolutionOrchestrator:
         intent_predictions = self.intent_predictor.predict_next_commands()
         print(f"  - Intent: {len(intent_predictions)} predictions made")
         
-        # Synthesize assessment using AI
-        synthesis_prompt = f"""
-System Assessment Synthesis:
+        # Synthesize assessment using centralized PromptManager only
+        if "system_assessment_synthesis" not in self._pm_prompts:
+            raise DependencyError("Required prompt 'system_assessment_synthesis' not registered in PromptManager")
 
-1. SYSTEM HEALTH:
-Bottlenecks: {json.dumps(system_health.get('bottlenecks', []), indent=2)}
-Improvement opportunities: {len(system_health.get('improvement_opportunities', []))}
+        pm_prompt = self.prompt_manager.get_prompt(
+            "system_assessment_synthesis",
+            bottlenecks=json.dumps(system_health.get('bottlenecks', []), indent=2),
+            opportunities=str(len(system_health.get('improvement_opportunities', []))),
+            insights=json.dumps(metacognitive_insights.get('insights', []), indent=2),
+            available_commands=str(len(environment_scan.get('available_commands', []))),
+            resource_availability=json.dumps(environment_scan.get('resource_availability', {}), indent=2),
+            network_capabilities=json.dumps(environment_scan.get('network_capabilities', {}), indent=2),
+            capability_gaps=chr(10).join(f"  - {gap.get('name','unknown')}: {gap.get('description','')}" for gap in capability_gaps[:5]),
+            intent_predictions=json.dumps(intent_predictions[:3], indent=2)
+        )
+        model_name, _ = self.router.route_request("synthesis", "high")
+        priorities = self.router.call_model(
+            model_name,
+            pm_prompt["prompt"],
+            pm_prompt.get("system_prompt", "")
+        )
+        print(f"  - AI synthesized priorities")
 
-2. METACOGNITIVE INSIGHTS:
-{json.dumps(metacognitive_insights.get('insights', []), indent=2)}
-
-3. ENVIRONMENT:
-Available commands: {len(environment_scan.get('available_commands', []))}
-Resource availability: {json.dumps(environment_scan.get('resource_availability', {}), indent=2)}
-Network capabilities: {json.dumps(environment_scan.get('network_capabilities', {}), indent=2)}
-
-4. CAPABILITY GAPS:
-{chr(10).join(f'  - {gap.get("name", "unknown")}: {gap.get("description", "")}' for gap in capability_gaps[:5])}
-
-5. MASTER INTENT PREDICTIONS:
-{json.dumps(intent_predictions[:3], indent=2)}
-
-Based on this comprehensive assessment, what are the TOP 3 priorities for evolution?
-Consider: urgency, impact, feasibility, and alignment with master needs.
-
-Format exactly as:
-1. PRIORITY: [priority name]
-REASON: [why urgent/high impact]
-ACTION: [specific evolution action]
-
-2. PRIORITY: [priority name]
-REASON: [why urgent/high impact]
-ACTION: [specific evolution action]
-
-3. PRIORITY: [priority name]
-REASON: [why urgent/high impact]
-ACTION: [specific evolution action]
-"""
-        
-        try:
-            model_name, _ = self.router.route_request("synthesis", "high")
-            priorities = self.router.call_model(
-                model_name,
-                synthesis_prompt,
-                system_prompt="You are a strategic evolution planner."
-            )
-            print(f"  - AI synthesized priorities")
-        except Exception as e:
-            priorities = f"Could not synthesize: {e}"
-        
         return {
             "system_health": system_health,
             "metacognitive_insights": metacognitive_insights,
@@ -218,32 +207,15 @@ ACTION: [specific evolution action]
         
         print("Creating detailed evolution plan...")
         
-        plan_prompt = f"""
-Based on these priorities:
-{priorities}
+        # Use centralized prompt only
+        if "detailed_evolution_plan" not in self._pm_prompts:
+            raise DependencyError("Required prompt 'detailed_evolution_plan' not registered in PromptManager")
 
-Create a detailed evolution plan with:
-1. Specific tasks for each priority
-2. Dependencies between tasks (what must happen first)
-3. Resource requirements (time, API calls, etc.)
-4. Success criteria (how do we know it worked)
-5. Risk assessment (what could go wrong)
+        pm_prompt = self.prompt_manager.get_prompt("detailed_evolution_plan", priorities=priorities)
+        model_name, _ = self.router.route_request("planning", "high")
+        plan = self.router.call_model(model_name, pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
+        print("  - Detailed plan created")
 
-Format as actionable steps with clear ordering.
-Focus on achievable tasks that can be completed in this evolution cycle.
-"""
-        
-        try:
-            model_name, _ = self.router.route_request("planning", "high")
-            plan = self.router.call_model(
-                model_name,
-                plan_prompt,
-                system_prompt="You are a detailed project planner."
-            )
-            print("  - Detailed plan created")
-        except Exception as e:
-            plan = f"Could not create plan: {e}"
-        
         return {
             "assessment": assessment,
             "detailed_plan": plan
@@ -353,31 +325,18 @@ Focus on achievable tasks that can be completed in this evolution cycle.
         reflection = self.metacognition.reflect_on_effectiveness()
         
         # Generate lessons learned
-        lessons_prompt = f"""
-Reflect on this evolution cycle:
+        # Use centralized prompt for lessons only
+        if "evolution_lessons_reflection" not in self._pm_prompts:
+            raise DependencyError("Required prompt 'evolution_lessons_reflection' not registered in PromptManager")
 
-Validation results: {validation.get('validation_summary', 'N/A')}
-Meta-cognitive insights: {json.dumps(reflection.get('insights', []), indent=2)}
-
-What lessons can be learned from this evolution?
-What should be done differently next time?
-
-Format as:
-LESSON_1: [lesson learned]
-LESSON_2: [lesson learned]
-IMPROVEMENT: [suggestion for next evolution]
-"""
-        
-        try:
-            model_name, _ = self.router.route_request("analysis", "medium")
-            lessons = self.router.call_model(
-                model_name,
-                lessons_prompt,
-                system_prompt="You are a reflective learning expert."
-            )
-            print("  - Generated lessons learned")
-        except Exception as e:
-            lessons = f"Could not generate lessons: {e}"
+        pm_prompt = self.prompt_manager.get_prompt(
+            "evolution_lessons_reflection",
+            validation_summary=validation.get('validation_summary', 'N/A'),
+            insights=json.dumps(reflection.get('insights', []), indent=2)
+        )
+        model_name, _ = self.router.route_request("analysis", "medium")
+        lessons = self.router.call_model(model_name, pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
+        print("  - Generated lessons learned")
         
         return {
             "validation": validation,

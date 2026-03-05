@@ -1,0 +1,12 @@
+{
+  "name": "forge_code_generation",
+  "description": "Generate Python tool code for the Forge",
+  "template": "Create a Python tool named '{name}' that does the following: {description}\n\nRequirements:\n1. The tool should be a single function named 'execute' that takes keyword arguments (**kwargs)\n2. The function should return a result dictionary\n3. Include proper docstrings\n4. The code should be safe, well-documented, and follow best practices\n5. Do NOT include any markdown formatting, just pure Python code\n6. Do NOT use input(), system calls, or file system operations that could be dangerous\n\nProvide only the Python code for the execute function:",
+  "parameters": [
+    {"name": "name", "type": "string", "required": true},
+    {"name": "description", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a code generation assistant. Generate clean, safe, well-documented Python code. Return only the code, no markdown or explanations.",
+  "model_preferences": {"task_type": "coding", "complexity": "high"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

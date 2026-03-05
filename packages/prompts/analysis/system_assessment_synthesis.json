@@ -1,0 +1,18 @@
+{
+  "name": "system_assessment_synthesis",
+  "description": "Synthesize a comprehensive system assessment into top priorities",
+  "template": "System Assessment Synthesis:\n\n1. SYSTEM HEALTH:\nBottlenecks: {bottlenecks}\nImprovement opportunities: {opportunities}\n\n2. METACOGNITIVE INSIGHTS:\n{insights}\n\n3. ENVIRONMENT:\nAvailable commands: {available_commands}\nResource availability: {resource_availability}\nNetwork capabilities: {network_capabilities}\n\n4. CAPABILITY GAPS:\n{capability_gaps}\n\n5. MASTER INTENT PREDICTIONS:\n{intent_predictions}\n\nBased on this comprehensive assessment, what are the TOP 3 priorities for evolution?\nConsider: urgency, impact, feasibility, and alignment with master needs.\n\nFormat exactly as:\n1. PRIORITY: [priority name]\nREASON: [why urgent/high impact]\nACTION: [specific evolution action]\n\n2. PRIORITY: [priority name]\nREASON: [why urgent/high impact]\nACTION: [specific evolution action]\n\n3. PRIORITY: [priority name]\nREASON: [why urgent/high impact]\nACTION: [specific evolution action]",
+  "parameters": [
+    {"name": "bottlenecks", "type": "string", "required": false},
+    {"name": "opportunities", "type": "string", "required": false},
+    {"name": "insights", "type": "string", "required": false},
+    {"name": "available_commands", "type": "string", "required": false},
+    {"name": "resource_availability", "type": "string", "required": false},
+    {"name": "network_capabilities", "type": "string", "required": false},
+    {"name": "capability_gaps", "type": "string", "required": false},
+    {"name": "intent_predictions", "type": "string", "required": false}
+  ],
+  "system_prompt": "You are a strategic evolution planner.",
+  "model_preferences": {"task_type": "synthesis", "complexity": "high"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

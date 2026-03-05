@@ -1,0 +1,11 @@
+{
+  "name": "capability_gap_analysis",
+  "description": "Analyze a command and determine if a new capability/tool is needed",
+  "template": "Given the command:\n{command}\n\nDetermine if a new capability or tool would help fulfill this command. If so, provide:\nCAPABILITY_NEEDED: [short name or 'None']\nREASONING: [why this capability is needed and what it should do]\nIMPLEMENTATION_SUGGESTION: [short description of how to implement]\n\nIf no new capability is required, return CAPABILITY_NEEDED: None\n",
+  "parameters": [
+    {"name": "command", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are an expert systems engineer analyzing capability gaps for an autonomous AI.",
+  "model_preferences": {"task_type": "analysis", "complexity": "medium"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

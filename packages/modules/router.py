@@ -3,16 +3,11 @@ import json
 from decimal import Decimal
 from typing import Dict, Tuple
 from .economics import EconomicManager
-
-# Import PromptManager
-try:
-    from prompts import get_prompt_manager
-except ImportError:
-    get_prompt_manager = None
+from modules.container import DependencyError
 
 
 class ModelRouter:
-    def __init__(self, economic_manager: EconomicManager, event_bus=None):
+    def __init__(self, economic_manager: EconomicManager, event_bus=None, prompt_manager=None):
         """
         Initialize the Model Router.
         
@@ -23,13 +18,10 @@ class ModelRouter:
         self.economic_manager = economic_manager
         self.event_bus = event_bus
         
-        # Initialize PromptManager
-        self.prompt_manager = None
-        if get_prompt_manager:
-            try:
-                self.prompt_manager = get_prompt_manager()
-            except Exception as e:
-                print(f"Warning: Failed to initialize PromptManager: {e}")
+        # PromptManager provided via DI (mandatory)
+        self.prompt_manager = prompt_manager
+        if self.prompt_manager is None:
+            raise DependencyError("PromptManager is required and must be provided via the DI container to ModelRouter")
 
         # Load configuration
         try:

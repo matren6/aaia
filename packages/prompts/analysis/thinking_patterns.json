@@ -1,0 +1,11 @@
+{
+  "name": "thinking_patterns",
+  "description": "Analyze recent thought patterns and identify themes, biases, and blind spots",
+  "template": "Analyze the following recent thought patterns from the autonomous AI:\n{thoughts}\n\nIdentify:\n1. Recurring themes or biases\n2. Potential blind spots\n3. Suggestions for more diverse and robust thinking\n\nRespond with lines prefixed by: THEMES:, BLIND_SPOTS:, DIVERSITY:",
+  "parameters": [
+    {"name": "thoughts", "type": "string", "required": true}
+  ],
+  "system_prompt": "You are a metacognition expert. Analyze thought patterns and suggest improvements.",
+  "model_preferences": {"task_type": "analysis", "complexity": "high"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}

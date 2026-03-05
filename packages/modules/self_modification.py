@@ -55,17 +55,20 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+from modules.container import DependencyError
+
 
 class SelfModification:
     """Safe self-modification with backup and testing."""
 
-    def __init__(self, scribe, router, forge, event_bus=None):
+    def __init__(self, scribe, router, forge, event_bus=None, prompt_manager=None):
         self.scribe = scribe
         self.router = router
         self.forge = forge
         self.event_bus = event_bus
         self.backup_dir = Path("backups")
         self.backup_dir.mkdir(exist_ok=True)
+        self.prompt_manager = prompt_manager
 
     def analyze_own_code(self, module_name: str) -> Dict:
         """Analyze a module's code for improvement opportunities"""
@@ -104,33 +107,29 @@ class SelfModification:
             # Get AI suggestions for improvement
             if analysis["functions"]:
                 complexity_list = [c['function'] for c in analysis['complexities']]
-                improvement_prompt = f"""
-Analyze this Python module for improvement opportunities:
-Module: {module_name}
-Lines: {analysis['lines_of_code']}
-Functions: {len(analysis['functions'])}
-High complexity functions: {complexity_list}
 
-Suggest specific improvements in these areas:
-1. Code structure/organization
-2. Performance optimizations
-3. Error handling improvements
-4. Documentation/comments
+                # Require centralized prompt template for code improvement
+                if not self.prompt_manager:
+                    raise DependencyError("PromptManager is required to generate code improvement suggestions")
 
-Be specific and actionable.
-Response format (one per line):
-- [area]: [suggestion]
-"""
                 try:
-                    model_name, _ = self.router.route_request("coding", "high")
-                    suggestions = self.router.call_model(
-                        model_name,
-                        improvement_prompt,
-                        system_prompt="You are a code review expert."
-                    )
-                    analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip() and s.strip().startswith('-')]
-                except Exception as e:
-                    analysis["improvements"] = [f"Could not get AI suggestions: {e}"]
+                    self.prompt_manager.get_prompt_raw("code_improvement_generation")
+                except Exception:
+                    raise DependencyError("Required prompt 'code_improvement_generation' not registered in PromptManager")
+
+                pm = self.prompt_manager.get_prompt(
+                    "code_improvement_generation",
+                    original_code=source,
+                    issues='; '.join([c.get('suggestion','') for c in analysis['complexities']])
+                )
+                model_name, _ = self.router.route_request("coding", "high")
+                suggestions = self.router.call_model(
+                    model_name,
+                    pm.get("prompt", ""),
+                    pm.get("system_prompt", "You are a code review expert.")
+                )
+
+                analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip() and (s.strip().startswith('-') or ':' in s)]
             
             return analysis
             
@@ -242,8 +241,8 @@ Response format (one per line):
             if backup_data is not None and isinstance(backup_data, dict):
                 # Find the module path
                 module_paths = [
-                    Path(f"modules/{module_name}.py"),
-                    Path(f"AAIA/modules/{module_name}.py")
+                    Path(f"packages/modules/{module_name}.py"),
+                    Path(f"modules/{module_name}.py")
                 ]
                 
                 module_path = None
@@ -252,34 +251,13 @@ Response format (one per line):
                         module_path = p
                         break
                 
-                if not module_path:
+                if module_path is None:
                     return False
                 
-                # If backup_data contains source code, write it
-                if "source_code" in backup_data:
-                    with open(module_path, 'w') as f:
-                        f.write(backup_data["source_code"])
-                    return True
-                
-                # Otherwise, fall through to file-based restoration
-            
-            # File-based restoration
-            backups = sorted(self.backup_dir.glob(f"{module_name}_*.py.backup"))
-            if backups:
-                latest_backup = backups[-1]
-                
-                # Find original location
-                module_paths = [
-                    Path(f"modules/{module_name}.py"),
-                    Path(f"AAIA/modules/{module_name}.py"),
-                    Path(f"{module_name}.py")
-                ]
-                
-                for module_path in module_paths:
-                    if module_path.exists() or module_path.parent.exists():
-                        shutil.copy2(latest_backup, module_path)
-                        return True
-            return False
+                with open(module_path, 'w') as f:
+                    f.write(backup_data.get('source', ''))
+                return True
+        
         except Exception as e:
             print(f"Restore failed: {e}")
             return False
@@ -329,33 +307,32 @@ Response format (one per line):
             
             if "error" in analysis:
                 return f"Could not analyze module: {analysis['error']}"
-            
-            prompt = f"""
-Improve the Python module '{module_name}' focusing on: {focus_area}
 
-Current stats:
-- Lines of code: {analysis['lines_of_code']}
-- Functions: {len(analysis['functions'])}
-- Complex functions: {analysis['complexities']}
+            # Require centralized prompt template for code improvement generation
+            if not self.prompt_manager:
+                raise DependencyError("PromptManager is required to generate improved code via centralized templates")
 
-Previous improvements suggested:
-{chr(10).join(analysis.get('improvements', ['None'])[:5])}
+            try:
+                self.prompt_manager.get_prompt_raw("code_improvement_generation")
+            except Exception:
+                raise DependencyError("Required prompt 'code_improvement_generation' not registered in PromptManager")
 
-Provide improved version of the module. Include:
-1. Better error handling
-2. Performance optimizations
-3. Clearer documentation
-4. Cleaner code structure
+            # Read actual source for the module
+            module = importlib.import_module(f"modules.{module_name}")
+            source = inspect.getsource(module)
 
-Return the complete improved Python code:
-"""
+            pm = self.prompt_manager.get_prompt(
+                "code_improvement_generation",
+                original_code=source,
+                issues='; '.join([c.get('suggestion','') for c in analysis.get('complexities', [])])
+            )
             model_name, _ = self.router.route_request("coding", "high")
             improved_code = self.router.call_model(
                 model_name,
-                prompt,
-                system_prompt="You are an expert Python developer. Provide clean, optimized code."
+                pm.get('prompt', ''),
+                pm.get('system_prompt', 'You are an expert Python developer. Provide clean, optimized code.')
             )
-            
+
             return improved_code
             
         except Exception as e:
@@ -379,104 +356,46 @@ Return the complete improved Python code:
                 if p.exists():
                     module_path = p
                     break
-            
-            if not module_path:
-                return False
-            
-            # Validate the code before writing
-            try:
-                ast.parse(improved_code)
-            except SyntaxError as e:
-                self.scribe.log_action(
-                    f"Improvement validation failed for {module_name}",
-                    f"Syntax error: {str(e)}",
-                    "error"
-                )
-                return False
-            
-            # Write the improved code
+
+            if module_path is None:
+                raise FileNotFoundError(f"Module file not found for: {module_name}")
+
+            # Validate improved code
+            validation = self.validate_tool_code(improved_code)
+            if not validation["valid"]:
+                raise ValueError(f"Improved code is invalid: {validation['error']}")
+
+            # Write improved code
             with open(module_path, 'w') as f:
                 f.write(improved_code)
-            
-            # Test the module
-            if self.test_module(module_name):
-                self.scribe.log_action(
-                    f"Module improved: {module_name}",
-                    "Successfully applied AI-generated improvements",
-                    "improvement_applied"
-                )
-                return True
-            else:
-                # Restore backup on test failure
+
+            # Run tests for module
+            if not self.test_module(module_name):
+                # Restore backup if tests fail
                 self.restore_backup(module_name)
-                return False
-                
+                raise RuntimeError("Tests failed after applying improvement; restored backup")
+
+            self.scribe.log_action(
+                f"Applied improvement to {module_name}",
+                "Improved via AI",
+                "modification_applied"
+            )
+
+            return True
         except Exception as e:
             self.scribe.log_action(
                 f"Failed to apply improvement to {module_name}",
                 f"Error: {str(e)}",
                 "error"
             )
-            self.restore_backup(module_name)
             return False
 
     def get_modification_history(self) -> List[Dict]:
-        """Get history of modifications"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT action, reasoning, outcome, timestamp
-            FROM action_log
-            WHERE action LIKE '%modification%' OR action LIKE '%improvement%'
-            ORDER BY timestamp DESC
-            LIMIT 20
-        """)
-        
-        history = []
-        for row in cursor.fetchall():
-            history.append({
-                "action": row[0],
-                "reasoning": row[1],
-                "outcome": row[2],
-                "timestamp": row[3]
-            })
-        
-        conn.close()
-        return history
-
-    def restore_from_backup(self, backup_data: Dict) -> Dict:
-        """Restore system state from backup data (for evolution pipeline).
-        
-        Args:
-            backup_data: Dictionary containing backup information including
-                         module names and optionally source code
-            
-        Returns:
-            Dictionary with restoration status
-        """
-        results = {
-            "status": "completed",
-            "modules_restored": [],
-            "errors": []
-        }
-        
-        if not backup_data:
-            results["status"] = "failed"
-            results["errors"].append("No backup data provided")
-            return results
-        
-        # If backup_data contains specific modules to restore
-        if "modules" in backup_data:
-            for module_name in backup_data["modules"]:
-                if self.restore_backup(module_name, backup_data.get(module_name)):
-                    results["modules_restored"].append(module_name)
-                else:
-                    results["errors"].append(f"Failed to restore {module_name}")
-        
-        # General restoration from file-based backups
-        elif "modules_restored" not in results or not results["modules_restored"]:
-            # Just mark as requiring manual restoration
-            results["status"] = "manual_restore_required"
-        
-        return results
+        """Get historical applied modifications"""
+        history_file = Path("data/modifications.json")
+        try:
+            if history_file.exists():
+                return json.loads(history_file.read_text())
+        except Exception:
+            pass
+        return []

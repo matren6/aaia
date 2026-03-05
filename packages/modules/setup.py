@@ -62,6 +62,8 @@ from modules.environment_explorer import EnvironmentExplorer
 from modules.strategy_optimizer import StrategyOptimizer
 from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
+from modules.prompt_manager import get_prompt_manager
+from modules.prompt_optimizer import PromptOptimizer
 
 
 class SystemBuilder:
@@ -139,10 +141,18 @@ class SystemBuilder:
         self._container.register_factory('Scribe', 
             lambda c: Scribe(config.database.path), 
             singleton=True)
+
+        # PromptManager - singleton
+        self._container.register_factory('PromptManager',
+            lambda c: get_prompt_manager(),
+            singleton=True)
             
         # Economic Manager
         self._container.register_factory('EconomicManager',
-            lambda c: EconomicManager(c.get('Scribe'), c.get('EventBus')),
+            lambda c: EconomicManager(
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
+            ),
             singleton=True)
             
         # Mandate Enforcer
@@ -152,39 +162,49 @@ class SystemBuilder:
             
         # Model Router
         self._container.register_factory('ModelRouter',
-            lambda c: ModelRouter(c.get('EconomicManager'), c.get('EventBus')),
+            lambda c: ModelRouter(
+                c.get('EconomicManager'),
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
+            ),
             singleton=True)
             
         # Dialogue Manager
         self._container.register_factory('DialogueManager',
-            lambda c: DialogueManager(c.get('Scribe'), c.get('ModelRouter')),
+            lambda c: DialogueManager(
+                c.get('Scribe'),
+                c.get('ModelRouter'),
+                prompt_manager=c.get('PromptManager')
+            ),
             singleton=True)
             
         # Forge (tool creation)
         self._container.register_factory('Forge',
-            lambda c: Forge(c.get('ModelRouter'), c.get('Scribe'), event_bus=c.get('EventBus')),
+            lambda c: Forge(c.get('ModelRouter'), c.get('Scribe'), event_bus=c.get('EventBus'), prompt_manager=c.get('PromptManager')),
             singleton=True)
     
     def _register_autonomous_services(self):
         """Register autonomous module services."""
         # Scheduler
         self._container.register_factory('AutonomousScheduler',
-            lambda c: AutonomousScheduler(
-                c.get('Scribe'),
-                c.get('ModelRouter'),
-                c.get('EconomicManager'),
-                c.get('Forge'),
-                container=c,  # Pass container to avoid circular deps
-                event_bus=c.get('EventBus')
-            ),
-            singleton=True)
+             lambda c: AutonomousScheduler(
+                 c.get('Scribe'),
+                 c.get('ModelRouter'),
+                 c.get('EconomicManager'),
+                 c.get('Forge'),
+                 container=c,  # Pass container to avoid circular deps
+                 event_bus=c.get('EventBus'),
+                 prompt_manager=c.get('PromptManager')
+             ),
+             singleton=True)
             
         # Goal System
         self._container.register_factory('GoalSystem',
             lambda c: GoalSystem(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('EconomicManager')
+                c.get('EconomicManager'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -205,7 +225,8 @@ class SystemBuilder:
                 c.get('ModelRouter'),
                 c.get('Forge'),
                 goals=c.get('GoalSystem'),  # Pass goals to avoid undefined attribute
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -215,7 +236,8 @@ class SystemBuilder:
                 c.get('Scribe'),
                 c.get('ModelRouter'),
                 c.get('Forge'),
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -227,7 +249,8 @@ class SystemBuilder:
                 c.get('Forge'),
                 c.get('SelfDiagnosis'),
                 c.get('SelfModification'),
-                c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -239,7 +262,9 @@ class SystemBuilder:
                 c.get('Forge'),
                 c.get('SelfDiagnosis'),
                 c.get('SelfModification'),
-                c.get('EvolutionManager')
+                c.get('EvolutionManager'),
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -248,8 +273,8 @@ class SystemBuilder:
             lambda c: MetaCognition(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                c.get('SelfDiagnosis'),
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -259,7 +284,8 @@ class SystemBuilder:
                 c.get('Scribe'),
                 c.get('ModelRouter'),
                 c.get('Forge'),
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -268,7 +294,8 @@ class SystemBuilder:
             lambda c: IntentPredictor(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -302,7 +329,8 @@ class SystemBuilder:
                 c.get('IntentPredictor'),
                 c.get('EnvironmentExplorer'),
                 c.get('StrategyOptimizer'),
-                event_bus=c.get('EventBus')
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -314,7 +342,7 @@ class SystemBuilder:
             'HierarchyManager', 'SelfDiagnosis', 'SelfModification',
             'EvolutionManager', 'EvolutionPipeline', 'MetaCognition',
             'CapabilityDiscovery', 'IntentPredictor', 'EnvironmentExplorer',
-            'StrategyOptimizer', 'EvolutionOrchestrator'
+            'StrategyOptimizer', 'EvolutionOrchestrator', 'PromptManager'
         ]
         
         for name in service_names:
@@ -407,7 +435,7 @@ def get_system_from_container(container: Container) -> dict:
         'HierarchyManager', 'SelfDiagnosis', 'SelfModification',
         'EvolutionManager', 'EvolutionPipeline', 'MetaCognition',
         'CapabilityDiscovery', 'IntentPredictor', 'EnvironmentExplorer',
-        'StrategyOptimizer', 'EvolutionOrchestrator'
+        'StrategyOptimizer', 'EvolutionOrchestrator', 'PromptManager'
     ]
     
     for name in service_names:

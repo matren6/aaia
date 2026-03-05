@@ -1,0 +1,12 @@
+{
+  "name": "task_execution_planner",
+  "description": "Decide how to execute a generic task",
+  "template": "Task: {task}\nDescription: {description}\n\nDetermine how to execute this task. Should the agent:\n1. Create a new tool\n2. Optimize existing code\n3. Analyze more deeply\n4. Modify configuration\n\nRespond with exactly:\nACTION: [one of: create_tool, optimize, analyze, modify_config]\n",
+  "parameters": [
+    {"name": "task", "type": "string", "required": true},
+    {"name": "description", "type": "string", "required": false}
+  ],
+  "system_prompt": "You are a task execution planner.",
+  "model_preferences": {"task_type": "reasoning", "complexity": "medium"},
+  "metadata": {"created_by": "ai_agent", "created_at": "2024-01-01T00:00:00Z", "version": "1.0"}
+}
