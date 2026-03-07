@@ -11,7 +11,7 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-**For complete deployment instructions, see [nixos_setup.md](nixos_setup.md)**
+**For complete deployment instructions, see [SETUP.md](SETUP.md)**
 
 ## What is AAIA?
 
@@ -50,7 +50,7 @@ AAIA is designed to run on NixOS with full Nix integration:
 - **Systemd Service**: Runs as a managed system service
 - **Security Hardened**: Isolated user, resource limits, protected directories
 
-See [nixos_setup.md](nixos_setup.md) for complete instructions.
+See [SETUP.md](SETUP.md) for complete instructions.
 
 ### System Requirements
 
@@ -72,7 +72,7 @@ aaia/
 ├── configuration.nix        # NixOS system configuration
 ├── install.sh              # Automated installer
 ├── test-installation.sh    # Installation verification
-└── nixos_setup.md          # Complete deployment guide
+└── SETUP.md          # Complete deployment guide
 ```
 
 ## Development
@@ -119,7 +119,7 @@ Contributions are welcome! Please:
 
 ## Support
 
-- 📖 **Documentation**: [nixos_setup.md](nixos_setup.md)
+- 📖 **Documentation**: [SETUP.md](SETUP.md)
 - 🐛 **Issues**: [GitHub Issues](https://github.com/matren6/aaia/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/matren6/aaia/discussions)
 
@@ -135,4 +135,4 @@ AAIA runs with security hardening:
 
 ---
 
-**Ready to deploy?** Start with [nixos_setup.md](SETUP.md)
+**Ready to deploy?** Start with [SETUP.md](SETUP.md)

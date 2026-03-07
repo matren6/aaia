@@ -239,7 +239,7 @@ show_post_install_info() {
     echo "3. Test AAIA command: aaia --help"
     echo "4. Data directory: /var/lib/aaia"
     echo
-    echo "For more information, see nixos_setup.md"
+    echo "For more information, see SETUP.md"
     echo
 }
 
