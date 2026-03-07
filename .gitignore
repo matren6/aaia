@@ -1,5 +1,6 @@
 # Nix build artifacts
 result/
+result-*
 .direnv/
 
 # Python
@@ -18,4 +19,8 @@ backups/
 # IDE
 .vscode/
 .idea/
+.vs/
 
+# Configuration backups
+*.backup.*
+configuration.nix.backup.*
