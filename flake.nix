@@ -15,29 +15,19 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           requests
           psutil
-          sqlite3
-          # Add your other Python dependencies here
         ]);
         
       in
       {
         # The AAIA package
-        packages.aaia = pkgs.python3Packages.buildPythonApplication {
+        packages.aaia = pkgs.stdenv.mkDerivation {
           pname = "aaia";
           version = "0.1.0";
 
           src = ./packages;
 
-          propagatedBuildInputs = with pkgs.python3Packages; [
-            requests
-            psutil
-            # sqlite3 is built into Python, no separate package needed
-          ];
+          nativeBuildInputs = [ pkgs.makeWrapper ];
 
-          # Don't run tests during build (add this if tests exist)
-          doCheck = false;
-
-          # Install main.py as executable
           installPhase = ''
             mkdir -p $out/bin $out/lib/aaia
 
@@ -47,12 +37,9 @@
             cp main.py $out/lib/aaia/
 
             # Create wrapper script
-            cat > $out/bin/aaia << 'EOF'
-#!/bin/sh
-export PYTHONPATH="$out/lib/aaia:$PYTHONPATH"
-exec ${pythonEnv}/bin/python $out/lib/aaia/main.py "$@"
-EOF
-            chmod +x $out/bin/aaia
+            makeWrapper ${pythonEnv}/bin/python $out/bin/aaia \
+              --add-flags "$out/lib/aaia/main.py" \
+              --set PYTHONPATH "$out/lib/aaia"
           '';
 
           meta = with pkgs.lib; {
