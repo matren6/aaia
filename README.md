@@ -115,7 +115,7 @@ Contributions are welcome! Please:
 
 ## License
 
-[Add your license here]
+Apache 2.0
 
 ## Support
 
