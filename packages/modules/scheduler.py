@@ -151,67 +151,69 @@ class AutonomousScheduler:
 
     def register_default_tasks(self):
         """Register default autonomous behaviors"""
+        # TESTING MODE: Shortened intervals for 1-hour test window
+        # Original intervals commented for reference
         self.register_task(
             name="system_health_check",
             function=self.check_system_health,
-            interval_minutes=30,
+            interval_minutes=5,  # Was: 30 min
             priority=1  # High priority - survival related
         )
         self.register_task(
             name="economic_review",
             function=self.review_economics,
-            interval_hours=1,
+            interval_minutes=10,  # Was: 1 hour
             priority=2
         )
         self.register_task(
             name="reflection_cycle",
             function=self.run_reflection,
-            interval_hours=24,  # Daily reflection
+            interval_minutes=15,  # Was: 24 hours
             priority=3
         )
         self.register_task(
             name="tool_maintenance",
             function=self.maintain_tools,
-            interval_hours=6,
+            interval_minutes=20,  # Was: 6 hours
             priority=2
         )
         self.register_task(
             name="evolution_check",
             function=self.check_evolution_needs,
-            interval_hours=24,  # Daily check
+            interval_minutes=25,  # Was: 24 hours
             priority=2
         )
-        
+
         self.register_task(
             name="self_diagnosis",
             function=self.run_self_diagnosis,
-            interval_hours=6,  # Every 6 hours
+            interval_minutes=30,  # Was: 6 hours
             priority=3
         )
-        
+
         # Advanced self-development tasks
         self.register_task(
             name="performance_snapshot",
             function=self.record_performance_snapshot,
-            interval_hours=1,
+            interval_minutes=8,  # Was: 1 hour
             priority=2
         )
         self.register_task(
             name="capability_discovery",
             function=self.run_capability_discovery,
-            interval_hours=48,  # Every 2 days
+            interval_minutes=35,  # Was: 48 hours
             priority=3
         )
         self.register_task(
             name="intent_prediction",
             function=self.run_intent_prediction,
-            interval_hours=12,
+            interval_minutes=40,  # Was: 12 hours
             priority=3
         )
         self.register_task(
             name="environment_exploration",
             function=self.run_environment_exploration,
-            interval_hours=24,
+            interval_minutes=45,  # Was: 24 hours
             priority=3
         )
 
@@ -281,46 +283,91 @@ class AutonomousScheduler:
 
     def run_scheduler(self):
         """Main scheduler loop"""
+        # Debug: print that scheduler thread has started
+        try:
+            print(f"[DEBUG] Scheduler thread started. Running={self.running}")
+        except Exception:
+            pass
+
         while self.running:
             now = datetime.now()
-            
+
+            # Debug: indicate check cycle
+            try:
+                print(f"[DEBUG] Scheduler checking {len(self.task_queue)} tasks at {now}")
+            except Exception:
+                pass
+
             # Check for due tasks
+            try:
+                names = [t.get('name') for t in self.task_queue]
+                print(f"[DEBUG] Task list: {names}")
+            except Exception:
+                pass
             for task in self.task_queue:
                 if not task.get("enabled", True):
                     continue
-                    
-                if self.should_run(task, now):
+
+                try:
+                    should = self.should_run(task, now)
+                except Exception as e:
+                    should = False
                     try:
+                        print(f"[DEBUG] should_run error for {task.get('name')}: {e}")
+                    except Exception:
+                        pass
+
+                try:
+                    print(f"[DEBUG] Task {task.get('name')} should_run={should} next_run={task.get('next_run')}")
+                except Exception:
+                    pass
+
+                if should:
+                    try:
+                        try:
+                            print(f"[DEBUG] Executing task: {task.get('name')}")
+                        except Exception:
+                            pass
                         # Log task execution
-                        self.scribe.log_action(
-                            f"Autonomous task: {task['name']}",
-                            "Scheduled autonomous behavior",
-                            "executing"
-                        )
-                        
+                        try:
+                            self.scribe.log_action(
+                                f"Autonomous task: {task['name']}",
+                                "Scheduled autonomous behavior",
+                                "executing"
+                            )
+                        except Exception as e:
+                            print(f"[DEBUG] scribe.log_action failed before executing {task.get('name')}: {e}")
+
                         # Execute task
                         result = task["function"]()
                         task["last_run"] = now
-                        
+
                         # Calculate next run time
-                        if task["interval_minutes"]:
+                        if task.get("interval_minutes"):
                             task["next_run"] = now + timedelta(minutes=task["interval_minutes"])
-                        elif task["interval_hours"]:
+                        elif task.get("interval_hours"):
                             task["next_run"] = now + timedelta(hours=task["interval_hours"])
-                        
+
                         # Log completion
-                        self.scribe.log_action(
-                            f"Completed task: {task['name']}",
-                            f"Result: {str(result)[:100]}",
-                            "completed"
-                        )
+                        try:
+                            self.scribe.log_action(
+                                f"Completed task: {task['name']}",
+                                f"Result: {str(result)[:100]}",
+                                "completed"
+                            )
+                        except Exception as e:
+                            print(f"[DEBUG] scribe.log_action failed after executing {task.get('name')}: {e}")
+
                     except Exception as e:
-                        self.scribe.log_action(
-                            f"Task failed: {task['name']}",
-                            f"Error: {str(e)}",
-                            "error"
-                        )
-            
+                        try:
+                            self.scribe.log_action(
+                                f"Task failed: {task['name']}",
+                                f"Error: {str(e)}",
+                                "error"
+                            )
+                        except Exception:
+                            print(f"[ERROR] Task {task.get('name')} failed and logging also failed: {e}")
+
             # Sleep for 1 minute before checking again
             time.sleep(60)
 
@@ -601,7 +648,9 @@ Response format:
                 "enabled": task.get("enabled", True),
                 "last_run": task.get("last_run"),
                 "next_run": task.get("next_run"),
-                "interval": task.get("interval_minutes") or task.get("interval_hours")
+                "interval": task.get("interval_minutes") or task.get("interval_hours"),
+                "interval_minutes": task.get("interval_minutes"),
+                "interval_hours": task.get("interval_hours")
             }
             for task in self.task_queue
         ]

@@ -100,5 +100,6 @@ subprocess.run(['nix', 'build', '.#aaia'], check=True)
 - ❌ **NO hardcoded prompts** - use PromptManager
 - ✅ **Always register** new modules in `setup.py`
 - ✅ **Test in WSL** before committing
+- Make sure to only use LF as line ending to avoid issues in WSL and Nix environments.
 - ⚠️ **No systemd in WSL** - full service testing needs NixOS
 - 📍 **WSL Path**: `/mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia`

@@ -46,6 +46,12 @@ class EventType(Enum):
     DIAGNOSIS_COMPLETED = "diagnosis_completed"
     DIAGNOSIS_ACTION_REQUIRED = "diagnosis_action_required"
 
+    # LLM Provider events
+    MODEL_INFERENCE = "model_inference"
+    PROVIDER_AVAILABLE = "provider_available"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
+    PROVIDER_FALLBACK = "provider_fallback"
+
 
 @dataclass
 class Event:

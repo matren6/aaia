@@ -15,6 +15,8 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           requests
           psutil
+          python-dotenv
+          pytest
         ]);
         
       in

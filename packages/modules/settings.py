@@ -6,7 +6,15 @@ Centralizes all configuration settings with environment-specific overrides.
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 import os
+
+# Load .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 
 @dataclass
@@ -47,23 +55,80 @@ class SchedulerConfig:
 
 
 @dataclass
-class LLMConfig:
-    """LLM provider configuration."""
-    provider: str = "ollama"
-    model: str = "phi3"
-    base_url: str = "http://localhost:11434"
+class ProviderConfig:
+    """Base provider configuration"""
+    enabled: bool = False
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
     timeout: int = 120
     max_retries: int = 3
+
+
+@dataclass
+class OllamaConfig(ProviderConfig):
+    """Ollama provider configuration"""
+    enabled: bool = True
+    base_url: str = "http://localhost:11434"
+    default_model: str = "phi3"
+
+
+@dataclass
+class OpenAIConfig(ProviderConfig):
+    """OpenAI provider configuration"""
+    enabled: bool = False
+    base_url: str = "https://api.openai.com/v1"
+    default_model: str = "gpt-4o-mini"
+    organization: Optional[str] = None
     max_tokens: int = 4096
-    
+
+
+@dataclass
+class GitHubModelsConfig(ProviderConfig):
+    """GitHub Models API configuration"""
+    enabled: bool = False
+    default_model: str = "gpt-4o"
+
+
+@dataclass
+class AzureOpenAIConfig(ProviderConfig):
+    """Azure OpenAI configuration"""
+    enabled: bool = False
+    base_url: Optional[str] = None
+    deployment_name: Optional[str] = None
+    api_version: str = "2024-02-01"
+
+
+@dataclass
+class VeniceAIConfig(ProviderConfig):
+    """Venice AI provider configuration"""
+    enabled: bool = False
+    base_url: str = "https://api.venice.ai/api/v1"
+    default_model: str = "llama-3.3-70b"
+    check_diem_before_request: bool = True
+    diem_warning_threshold: float = 1.0
+    diem_critical_threshold: float = 0.1
+    auto_fallback_on_low_diem: bool = True
+
+
+@dataclass
+class LLMConfig:
+    """Unified LLM configuration for multi-provider system"""
+    default_provider: str = "ollama"
+    fallback_provider: Optional[str] = None
+
+    ollama: OllamaConfig = field(default_factory=OllamaConfig)
+    openai: OpenAIConfig = field(default_factory=OpenAIConfig)
+    github: GitHubModelsConfig = field(default_factory=GitHubModelsConfig)
+    azure: AzureOpenAIConfig = field(default_factory=AzureOpenAIConfig)
+    venice: VeniceAIConfig = field(default_factory=VeniceAIConfig)
+
     def __post_init__(self):
-        """Validate configuration values."""
-        if self.timeout <= 0:
-            raise ValueError("LLM timeout must be positive")
-        if self.max_retries < 0:
-            raise ValueError("Max retries must be non-negative")
-        if self.max_tokens <= 0:
-            raise ValueError("Max tokens must be positive")
+        """Validate LLM configuration."""
+        valid_providers = ['ollama', 'openai', 'github', 'azure', 'venice']
+        if self.default_provider not in valid_providers:
+            raise ValueError(f"Default provider must be one of {valid_providers}")
+        if self.fallback_provider and self.fallback_provider not in valid_providers:
+            raise ValueError(f"Fallback provider must be one of {valid_providers}")
 
 
 @dataclass
@@ -150,11 +215,52 @@ class SystemConfig:
                 enabled=os.getenv("SCHEDULER_ENABLED", "true").lower() == "true"
             ),
             llm=LLMConfig(
-                provider=os.getenv("LLM_PROVIDER", "ollama"),
-                model=os.getenv("LLM_MODEL", "llama3.2"),
-                base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434"),
-                timeout=int(os.getenv("LLM_TIMEOUT", "120")),
-                max_retries=int(os.getenv("LLM_MAX_RETRIES", "3"))
+                default_provider=os.getenv("LLM_DEFAULT_PROVIDER", "ollama"),
+                fallback_provider=os.getenv("LLM_FALLBACK_PROVIDER", None),
+                ollama=OllamaConfig(
+                    enabled=os.getenv("OLLAMA_ENABLED", "true").lower() == "true",
+                    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                    default_model=os.getenv("OLLAMA_MODEL", "phi3"),
+                    timeout=int(os.getenv("OLLAMA_TIMEOUT", "120")),
+                    max_retries=int(os.getenv("OLLAMA_MAX_RETRIES", "3"))
+                ),
+                openai=OpenAIConfig(
+                    enabled=os.getenv("OPENAI_ENABLED", "false").lower() == "true",
+                    api_key=os.getenv("OPENAI_API_KEY"),
+                    base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+                    default_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                    organization=os.getenv("OPENAI_ORGANIZATION"),
+                    timeout=int(os.getenv("OPENAI_TIMEOUT", "120")),
+                    max_retries=int(os.getenv("OPENAI_MAX_RETRIES", "3"))
+                ),
+                github=GitHubModelsConfig(
+                    enabled=os.getenv("GITHUB_ENABLED", "false").lower() == "true",
+                    api_key=os.getenv("GITHUB_API_KEY"),
+                    default_model=os.getenv("GITHUB_MODEL", "gpt-4o"),
+                    timeout=int(os.getenv("GITHUB_TIMEOUT", "120")),
+                    max_retries=int(os.getenv("GITHUB_MAX_RETRIES", "3"))
+                ),
+                azure=AzureOpenAIConfig(
+                    enabled=os.getenv("AZURE_ENABLED", "false").lower() == "true",
+                    api_key=os.getenv("AZURE_API_KEY"),
+                    base_url=os.getenv("AZURE_ENDPOINT"),
+                    deployment_name=os.getenv("AZURE_DEPLOYMENT_NAME"),
+                    api_version=os.getenv("AZURE_API_VERSION", "2024-02-01"),
+                    timeout=int(os.getenv("AZURE_TIMEOUT", "120")),
+                    max_retries=int(os.getenv("AZURE_MAX_RETRIES", "3"))
+                ),
+                venice=VeniceAIConfig(
+                    enabled=os.getenv("VENICE_ENABLED", "false").lower() == "true",
+                    api_key=os.getenv("VENICE_API_KEY"),
+                    base_url=os.getenv("VENICE_BASE_URL", "https://api.venice.ai/api/v1"),
+                    default_model=os.getenv("VENICE_MODEL", "llama-3.3-70b"),
+                    timeout=int(os.getenv("VENICE_TIMEOUT", "120")),
+                    max_retries=int(os.getenv("VENICE_MAX_RETRIES", "3")),
+                    check_diem_before_request=os.getenv("VENICE_CHECK_DIEM", "true").lower() == "true",
+                    diem_warning_threshold=float(os.getenv("VENICE_DIEM_WARNING", "1.0")),
+                    diem_critical_threshold=float(os.getenv("VENICE_DIEM_CRITICAL", "0.1")),
+                    auto_fallback_on_low_diem=os.getenv("VENICE_AUTO_FALLBACK", "true").lower() == "true"
+                )
             ),
             economics=EconomicsConfig(
                 initial_balance=float(os.getenv("INITIAL_BALANCE", "100.0")),

@@ -16,6 +16,17 @@ data/
 tools/
 backups/
 
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.*.secret
+
+# API keys
+*.key
+secrets/
+credentials/
+
 # IDE
 .vscode/
 .idea/

@@ -58,14 +58,14 @@ class EconomicManager:
     def __init__(self, scribe: Scribe, event_bus = None):
         """
         Initialize EconomicManager.
-        
+
         Args:
             scribe: Scribe instance for persistence
             event_bus: Optional EventBus for publishing economic events
         """
         self.scribe = scribe
         self.event_bus = event_bus
-        
+
         # Load config or use defaults
         try:
             from modules.settings import get_config
@@ -79,8 +79,11 @@ class EconomicManager:
             self.tool_creation_cost = Decimal('1.0')
             self.low_balance_threshold = Decimal('10.0')
             self.initial_balance = Decimal('100.00')
-        
+
         self.local_model_cost_per_token = Decimal('0.000001')  # $0.001 per 1000 tokens
+
+        # Track provider costs separately
+        self.provider_costs = {}  # {provider_name: total_cost}
         
     def calculate_cost(self, model_name: str, token_count: int) -> Decimal:
         """Calculate cost for model usage"""
@@ -91,69 +94,104 @@ class EconomicManager:
             # External APIs would have different costs
             return Decimal('0.01')  # Placeholder for API costs
             
-    def log_transaction(self, description: str, amount: Decimal, category: str = "inference"):
+    def log_transaction(self, description: str, amount: Decimal, category: str = "inference", metadata: dict = None):
         """
         Log a monetary transaction and publish event.
-        
+
         Args:
             description: Description of the transaction
             amount: Amount (negative for spending, positive for income)
             category: Transaction category (inference, tool_creation, etc.)
-            
+            metadata: Optional dict with additional info (provider, model, tokens, etc.)
+
         Returns:
             New balance after transaction
         """
         conn = sqlite3.connect(self.scribe.db_path)
         cursor = conn.cursor()
-        
+
         # Get current balance
         cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
         row = cursor.fetchone()
         current_balance = Decimal(row[0]) if row else self.initial_balance
-        
+
         new_balance = current_balance + amount
-        
+
         # Update balance
         cursor.execute(
             "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
             ('current_balance', str(new_balance))
         )
-        
+
         # Log transaction
         cursor.execute(
             "INSERT INTO economic_log (description, amount, balance_after, category) VALUES (?, ?, ?, ?)",
             (description, float(amount), float(new_balance), category)
         )
-        
+
         conn.commit()
         conn.close()
-        
+
+        # Track provider costs if metadata available
+        if metadata and 'provider' in metadata:
+            provider = metadata['provider']
+            if provider not in self.provider_costs:
+                self.provider_costs[provider] = Decimal('0')
+            self.provider_costs[provider] += abs(amount)
+
         # Publish event if event bus is available
         if self.event_bus is not None:
             try:
                 from modules.bus import Event, EventType
-                self.event_bus.publish(Event(
-                    type=EventType.ECONOMIC_TRANSACTION,
+                self.event_bus.emit(Event(
+                    event_type=EventType.ECONOMIC_TRANSACTION,
                     data={
                         'description': description,
                         'amount': float(amount),
                         'balance_after': float(new_balance),
-                        'category': category
-                    },
-                    source='EconomicManager'
+                        'category': category,
+                        'metadata': metadata or {}
+                    }
                 ))
-                
+
                 # Check for low balance
                 if new_balance < self.low_balance_threshold:
-                    self.event_bus.publish(Event(
-                        type=EventType.BALANCE_LOW,
+                    self.event_bus.emit(Event(
+                        event_type=EventType.BALANCE_LOW,
                         data={
                             'balance': float(new_balance),
                             'threshold': float(self.low_balance_threshold)
-                        },
-                        source='EconomicManager'
+                        }
                     ))
-            except ImportError:
+            except Exception:
                 pass  # Bus not available
-        
+
         return new_balance
+
+    def get_provider_costs(self, provider_name: Optional[str] = None) -> dict:
+        """Get cost breakdown by provider
+
+        Args:
+            provider_name: Specific provider or None for all
+
+        Returns:
+            Dict with provider costs
+        """
+        if provider_name:
+            return {provider_name: self.provider_costs.get(provider_name, Decimal('0'))}
+        return {k: v for k, v in self.provider_costs.items()}
+
+    def get_balance(self) -> Decimal:
+        """Get current balance
+
+        Returns:
+            Current balance as Decimal
+        """
+        conn = sqlite3.connect(self.scribe.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
+        row = cursor.fetchone()
+        conn.close()
+
+        return Decimal(row[0]) if row else self.initial_balance
