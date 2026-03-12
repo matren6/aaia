@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export NIX_EXPERIMENTAL_FEATURES="nix-command flakes"
 
 # AAIA NixOS Automated Installation Script
 # This script automates the deployment of AAIA on NixOS
@@ -11,7 +12,7 @@ REPO_DIR="$SCRIPT_DIR"
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+BLUE='\033[0;94m'
 NC='\033[0m' # No Color
 
 # Logging functions
@@ -61,7 +62,7 @@ enable_flakes() {
     log_info "Checking Nix flakes configuration..."
     
     # Check if flakes are already enabled
-    if nix show-config | grep -q "experimental-features.*flakes"; then
+    if nix --experimental-features="nix-command flakes" config show | grep -q "experimental-features.*flakes"; then
         log_success "Nix flakes already enabled"
         return 0
     fi
