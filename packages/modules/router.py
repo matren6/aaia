@@ -4,14 +4,14 @@ from decimal import Decimal
 from typing import Dict, Tuple, Optional, Any
 from datetime import datetime
 from .economics import EconomicManager
-from modules.container import DependencyError
+from modules.container import DependencyError, get_container
 from modules.bus import Event, EventType
 import uuid
 import time
 
 
 class ModelRouter:
-    def __init__(self, economic_manager: EconomicManager, event_bus=None, prompt_manager=None, config=None):
+    def __init__(self, economic_manager: EconomicManager, event_bus=None, prompt_manager=None, config=None, marginal_analyzer=None):
         """
         Initialize the Model Router with multi-provider support.
 
@@ -20,10 +20,13 @@ class ModelRouter:
             event_bus: Optional EventBus for publishing events
             prompt_manager: Optional PromptManager for prompt preferences
             config: Optional SystemConfig (if None, loads from env)
+            marginal_analyzer: Optional MarginalAnalyzer for Phase 2
         """
         self.economic_manager = economic_manager
         self.event_bus = event_bus
         self.prompt_manager = prompt_manager
+        self.marginal_analyzer = marginal_analyzer
+
 
         # Load configuration
         try:
@@ -80,34 +83,55 @@ class ModelRouter:
 
     def select_provider(self, task_type: str = "general", 
                        complexity: str = "medium",
-                       preferred_provider: Optional[str] = None) -> str:
+                       preferred_provider: Optional[str] = None,
+                       use_marginal_analysis: bool = True) -> str:
         """Select appropriate provider based on task requirements
+
+        Phase 2: Uses marginal analysis for Austrian Economic optimization
 
         Args:
             task_type: Type of task (general, code, analysis, etc.)
             complexity: Complexity level (low, medium, high)
             preferred_provider: Explicit provider override
+            use_marginal_analysis: Use Phase 2 marginal analysis (if available)
 
         Returns:
             Provider name to use
 
         Selection Priority:
         1. Explicit preferred_provider
-        2. Prompt template preferences (from PromptManager)
-        3. Task-based routing (complex → paid, simple → free)
-        4. Default provider from config
+        2. Marginal analysis (Phase 2) - if enabled and available
+        3. Prompt template preferences (from PromptManager)
+        4. Task-based routing (complex → paid, simple → free)
+        5. Default provider from config
         """
         # 1. Explicit override
         if preferred_provider:
             return preferred_provider
 
-        # 2. Check prompt preferences
+        # 2. Phase 2: Use marginal analysis if available
+        if use_marginal_analysis and self.marginal_analyzer:
+            try:
+                available = self.provider_factory.list_available_providers()
+                if available:
+                    selected, analysis = self.marginal_analyzer.analyze(
+                        available_providers=available,
+                        task_type=task_type,
+                        complexity=complexity,
+                        expected_tokens=1000,  # Default estimate
+                        minimum_quality_threshold=0.7
+                    )
+                    return selected
+            except Exception:
+                pass  # Fall through to next method
+
+        # 3. Check prompt preferences
         if self.prompt_manager:
             preferences = self._get_prompt_preferences(task_type)
             if preferences and 'provider' in preferences:
                 return preferences['provider']
 
-        # 3. Smart routing based on complexity
+        # 4. Smart routing based on complexity
         if complexity == "high":
             # Complex tasks → use powerful providers
             available = self.provider_factory.list_available_providers()
@@ -124,7 +148,7 @@ class ModelRouter:
                 if provider in available:
                     return provider
 
-        # 4. Default provider
+        # 5. Default provider
         return self.llm_config.default_provider
 
     def _get_prompt_preferences(self, task_type: str) -> Optional[Dict]:

@@ -284,6 +284,14 @@ class AutonomousScheduler:
             priority=3
         )
 
+        # Phase 3: Economic Crisis Monitoring
+        self.register_task(
+            name="economic_crisis_check",
+            function=self.check_economic_crisis,
+            interval_minutes=15,  # Check every 15 minutes
+            priority=1  # High priority - crisis response is critical
+        )
+
     def register_task(self, name: str, function: Callable, 
                       interval_minutes: int = None, 
                       interval_hours: int = None,
@@ -301,6 +309,30 @@ class AutonomousScheduler:
             "next_run": None
         }
         self.task_queue.append(task)
+
+    def pause_task(self, task_name: str):
+        """Pause a specific task (Phase 3: used during crisis)"""
+        for task in self.task_queue:
+            if task['name'] == task_name:
+                task['enabled'] = False
+                self.scribe.log_action(
+                    f"Task paused: {task_name}",
+                    reasoning="Manual pause or crisis mode",
+                    outcome="Paused"
+                )
+                return
+
+    def resume_task(self, task_name: str):
+        """Resume a paused task (Phase 3: used during crisis recovery)"""
+        for task in self.task_queue:
+            if task['name'] == task_name:
+                task['enabled'] = True
+                self.scribe.log_action(
+                    f"Task resumed: {task_name}",
+                    reasoning="Manual resume or crisis recovery",
+                    outcome="Active"
+                )
+                return
 
     def start(self):
         """Start autonomous scheduler in background thread"""
@@ -803,6 +835,46 @@ Response format:
         exploration = env_exp.explore_environment()
         opportunities = env_exp.find_development_opportunities()
         return f"Environment explored: {len(exploration.get('available_commands', []))} commands, {len(opportunities)} opportunities"
+
+    # Phase 3: Economic Crisis Monitoring
+    def check_economic_crisis(self):
+        """Check for economic crisis and manage recovery (Phase 3)"""
+        try:
+            crisis_handler = self._container.get('EconomicCrisisHandler')
+
+            # Check if we're in crisis
+            if crisis_handler.in_crisis:
+                recovered = crisis_handler.check_recovery()
+                if recovered:
+                    return "Economic crisis resolved"
+                else:
+                    balance = self.economics.get_balance()
+                    return f"Still in crisis: ${balance:.2f}"
+            else:
+                # Proactive check for potential crisis
+                balance = self.economics.get_balance()
+                if balance < crisis_handler.crisis_threshold:
+                    # Emit crisis event to trigger handler
+                    if self.event_bus:
+                        try:
+                            from modules.bus import Event, EventType
+                            self.event_bus.emit(Event(EventType.ECONOMIC_CRISIS, {
+                                'reason': 'Balance below threshold',
+                                'balance': float(balance)
+                            }, source='Scheduler'))
+                        except:
+                            pass
+                    return "Crisis detected and declared"
+
+            return "Economic health OK"
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Crisis check failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Crisis check error: {str(e)}"
 
     # Phase 2: Master Model & Income Tasks (NEW)
     def _get_master_model_manager(self):

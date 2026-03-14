@@ -144,7 +144,19 @@ class EconomicsConfig:
     inference_cost: float = 0.01
     tool_creation_cost: float = 1.0
     income_generation_enabled: bool = True
-    
+
+    # Resource cost configuration (Phase 1)
+    cpu_cost_per_second: float = 0.0001           # $0.0001 per CPU-second
+    memory_cost_per_gb_hour: float = 0.01         # $0.01 per GB-hour
+    storage_cost_per_gb_month: float = 0.10       # $0.10 per GB-month
+    electricity_cost_per_kwh: float = 0.50        # $0.50 per kWh (EU rate)
+
+    # Resource monitoring configuration
+    resource_monitoring_enabled: bool = True
+    resource_monitoring_interval: int = 300       # Check every 5 minutes (seconds)
+    resource_cost_threshold: float = 0.01         # Only log if cost > $0.01
+    estimated_system_power_watts: float = 150.0   # Estimated system power draw in watts
+
     def __post_init__(self):
         """Validate configuration values."""
         if self.initial_balance < 0:
@@ -155,6 +167,19 @@ class EconomicsConfig:
             raise ValueError("Inference cost must be non-negative")
         if self.tool_creation_cost < 0:
             raise ValueError("Tool creation cost must be non-negative")
+        # Validate resource costs
+        if self.cpu_cost_per_second < 0:
+            raise ValueError("CPU cost must be non-negative")
+        if self.memory_cost_per_gb_hour < 0:
+            raise ValueError("Memory cost must be non-negative")
+        if self.storage_cost_per_gb_month < 0:
+            raise ValueError("Storage cost must be non-negative")
+        if self.electricity_cost_per_kwh < 0:
+            raise ValueError("Electricity cost must be non-negative")
+        if self.resource_monitoring_interval <= 0:
+            raise ValueError("Resource monitoring interval must be positive")
+        if self.estimated_system_power_watts <= 0:
+            raise ValueError("System power must be positive")
 
 
 @dataclass

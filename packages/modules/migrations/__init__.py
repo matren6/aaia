@@ -34,6 +34,8 @@ def get_migrations() -> Dict[int, Migration]:
     from .migration_004_add_master_model import Migration004
     from .migration_005_add_income_tracking import Migration005
     from .migration_006_add_mandate_overrides import Migration006
+    from .migration_008_resource_costs import Migration008
+    from .migration_009_provider_performance import Migration009
 
     return {
         1: Migration001(),
@@ -42,4 +44,6 @@ def get_migrations() -> Dict[int, Migration]:
         4: Migration004(),
         5: Migration005(),
         6: Migration006(),
+        8: Migration008(),
+        9: Migration009(),
     }

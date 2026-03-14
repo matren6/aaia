@@ -42,23 +42,38 @@ bus.on(EventType.CUSTOM, handler_function)
 
 ## WSL Testing (Quick Reference)
 
+**⚠️ IMPORTANT: Always use Nix in WSL**  
+The Nix environment ensures `python-dotenv` and all dependencies are available, so `.env` configuration is properly loaded.
+
 **From Windows PowerShell:**
 ```powershell
+# Recommended: Use helper script with .env loading
+wsl -d Ubuntu-24.04 -e bash -lc "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && ./scripts/wsl_test.sh -c status -e"
+
+# Dev shell + test (ensures .env is loaded)
+wsl -d Ubuntu-24.04 -e bash -lc "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix develop --extra-experimental-features 'nix-command flakes' --command python3 packages/main.py"
+
+# Test Ollama connectivity
+wsl -d Ubuntu-24.04 -e bash -lc "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix develop --extra-experimental-features 'nix-command flakes' --command python3 scripts/test_ollama_connection.py"
+
 # Build and run
-wsl -d Ubuntu-24.04 -e bash -c "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix build .#aaia && ./result/bin/aaia"
-
-# Dev shell + test
-wsl -d Ubuntu-24.04 -e bash -c "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix develop -c python packages/main.py"
-
-# Validate imports
-wsl -d Ubuntu-24.04 -e bash -c "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix develop -c python -c 'from modules.bus import EventBus; print(\"OK\")'"
+wsl -d Ubuntu-24.04 -e bash -lc "cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && nix build --extra-experimental-features 'nix-command flakes' .#aaia && ./result/bin/aaia"
 ```
 
 **From WSL:**
 ```bash
 cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia
-nix build .#aaia && ./result/bin/aaia
+
+# Use helper script (recommended)
+./scripts/wsl_test.sh -c "status" -e
+
+# Or use Nix directly
+nix develop --extra-experimental-features "nix-command flakes" --command python3 packages/main.py
 ```
+
+**Why Nix is Required in WSL:**
+- Without Nix: `python-dotenv` not available → `.env` file ignored → uses wrong defaults (`localhost:11434`)
+- With Nix: All deps available → `.env` loaded → connects to `http://192.168.178.104:11434` ✅
 
 ## CLI Testing (Batch Mode & Automation)
 

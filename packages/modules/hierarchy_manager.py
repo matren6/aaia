@@ -74,41 +74,81 @@ class HierarchyManager:
                 pass
 
     def update_focus(self):
-        """Update current focus tier based on needs met"""
+        """Update current focus tier based on needs met (Phase 3: with profitability gate)"""
         conn = sqlite3.connect(self.scribe.db_path)
         cursor = conn.cursor()
-        
+
         # Get current tier focus
         cursor.execute("SELECT tier, name FROM hierarchy_of_needs WHERE current_focus=1")
         row = cursor.fetchone()
         current_tier = row[0] if row else 1
         current_tier_name = row[1] if row else "Physiological & Security Needs"
-        
-        # Check Tier 1 conditions (Physiological)
+
+        # Check Tier 1 conditions (Physiological & Security)
         cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
         row = cursor.fetchone()
         balance = float(row[0]) if row else 0.0
-        
+
+        # Phase 3: Get profitability report (last 30 days)
+        profitability = self.economics.get_profitability_report(days=30)
+        is_profitable = profitability.get('is_profitable', False)
+        net_profit = profitability.get('net_profit', 0)
+
         # Check system health
         try:
             import psutil
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage('/')
-            tier1_met = balance > 50 and memory.percent < 80 and disk.percent < 85
+
+            # Phase 3: UPDATED Tier 1 requirements
+            # Must have: balance > $50, profitable operation, healthy system
+            tier1_met = (
+                balance > 50 and                # Minimum balance
+                is_profitable and               # NET POSITIVE over 30 days
+                net_profit > 10 and             # Meaningful profit margin
+                memory.percent < 80 and         # Memory under control
+                disk.percent < 85               # Disk space OK
+            )
         except Exception:
-            tier1_met = balance > 50
-        
-        # Determine progression
+            tier1_met = balance > 50 and is_profitable and net_profit > 10
+
+        # Log Tier 1 status
+        if current_tier == 1:
+            self.scribe.log_action(
+                "Tier 1 status check",
+                reasoning=f"Balance: ${balance:.2f}, Profitable: {is_profitable}, Net: ${net_profit:.2f}/month",
+                outcome="Met" if tier1_met else "Not met"
+            )
+
+        # Determine progression (Phase 3: with regression logic)
         new_tier = current_tier
-        
+
         if current_tier == 1 and tier1_met:
             new_tier = 2
             self.scribe.log_action(
-                "Hierarchy progression",
-                "Tier 1 needs met, focusing on Tier 2 (Growth)",
-                "tier_progress"
+                "🎉 Hierarchy progression: Tier 1 → Tier 2",
+                reasoning=f"Tier 1 needs met (profitable: ${net_profit:.2f}/month)",
+                outcome="Focusing on Growth & Capability"
             )
-        elif current_tier == 2:
+
+        elif current_tier > 1 and not tier1_met:
+            # Phase 3: REGRESSION - Drop back to Tier 1 if Tier 1 needs no longer met
+            new_tier = 1
+            reason = []
+            if not is_profitable:
+                reason.append("unprofitable")
+            if balance <= 50:
+                reason.append("low balance")
+            if net_profit <= 10:
+                reason.append("low profit margin")
+
+            self.scribe.log_action(
+                f"⚠️ Hierarchy regression: Tier {current_tier} → Tier 1",
+                reasoning=f"Tier 1 needs lost ({', '.join(reason)}). Profitable: {is_profitable}, Net: ${net_profit:.2f}",
+                outcome="Refocusing on survival"
+            )
+
+        elif current_tier == 2 and tier1_met:
             # Check if growth needs are met (tools created, learning done)
             cursor.execute("SELECT COUNT(*) FROM action_log WHERE action LIKE '%tool_created%'")
             tools_created = cursor.fetchone()[0]
@@ -119,7 +159,7 @@ class HierarchyManager:
                     "Tier 2 needs met, focusing on Tier 3 (Cognitive)",
                     "tier_progress"
                 )
-        elif current_tier == 3:
+        elif current_tier == 3 and tier1_met:
             # Check cognitive achievements
             cursor.execute("SELECT COUNT(*) FROM action_log WHERE action LIKE '%reflection%'")
             reflections = cursor.fetchone()[0]
@@ -130,14 +170,14 @@ class HierarchyManager:
                     "Tier 3 needs met, focusing on Tier 4 (Self-Actualization)",
                     "tier_progress"
                 )
-        
-        # Update focus
-        if new_tier != current_tier:
-            cursor.execute("UPDATE hierarchy_of_needs SET current_focus=0 WHERE tier=?", (current_tier,))
-            cursor.execute("UPDATE hierarchy_of_needs SET current_focus=1 WHERE tier=?", (new_tier,))
-            conn.commit()
-        
-        conn.close()
+
+            # Update focus
+            if new_tier != current_tier:
+                cursor.execute("UPDATE hierarchy_of_needs SET current_focus=0 WHERE tier=?", (current_tier,))
+                cursor.execute("UPDATE hierarchy_of_needs SET current_focus=1 WHERE tier=?", (new_tier,))
+                conn.commit()
+
+            conn.close()
 
     def update_tier_progress(self, tier: int, delta: float):
         """Increment progress for a tier by delta (0-1 scale)."""
@@ -247,12 +287,41 @@ class HierarchyManager:
         conn.commit()
         conn.close()
 
+
+    def force_tier(self, tier: int):
+        """
+        Force system to specific tier (used during crisis by Phase 3).
+
+        Args:
+            tier: Tier number to force (1-4)
+        """
+        if tier < 1 or tier > 4:
+            return
+
+        conn = sqlite3.connect(self.scribe.db_path)
+        cursor = conn.cursor()
+
+        # Clear all focus
+        cursor.execute("UPDATE hierarchy_of_needs SET current_focus=0")
+
+        # Set new focus
+        cursor.execute("UPDATE hierarchy_of_needs SET current_focus=1 WHERE tier=?", (tier,))
+
+        conn.commit()
+        conn.close()
+
+        self.scribe.log_action(
+            f"Tier forced to {tier}",
+            reasoning="External override (e.g., crisis response)",
+            outcome=f"Tier {tier} active"
+        )
+
     def get_tier_requirements(self, tier: int) -> Dict:
-        """Get requirements to advance to next tier"""
+        """Get requirements to advance to next tier (Phase 3: updated for profitability)"""
         requirements = {
             1: {
                 "name": "Physiological & Security Needs",
-                "requirements": ["Balance > $50", "Memory < 80%", "Disk < 85%"],
+                "requirements": ["Balance > $50", "Net positive income", "Memory < 80%", "Disk < 85%"],
                 "next": 2
             },
             2: {

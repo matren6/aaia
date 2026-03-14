@@ -25,6 +25,8 @@ class EventType(Enum):
     INCOME_RECORDED = "income_recorded"
     INCOME_OPPORTUNITY_IDENTIFIED = "income_opportunity_identified"
     PROFITABILITY_ALERT = "profitability_alert"
+    RESOURCE_COST = "resource_cost"
+    ECONOMIC_CRISIS = "economic_crisis"
 
     # Evolution events
     EVOLUTION_STARTED = "evolution_started"

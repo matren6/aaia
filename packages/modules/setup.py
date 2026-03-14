@@ -75,6 +75,15 @@ from modules.trait_extractor import TraitExtractor, AutonomousTraitLearning
 from modules.reflection_analyzer import ReflectionAnalyzer
 from modules.profitability_reporter import ProfitabilityReporter
 
+# Import Phase 1 modules (Resource Monitoring)
+from modules.resource_monitor import ResourceMonitor
+
+# Import Phase 2 modules (Marginal Analysis)
+from modules.marginal_analyzer import MarginalAnalyzer
+
+# Import Phase 3 modules (Crisis Response)
+from modules.economic_crisis_handler import EconomicCrisisHandler
+
 
 class SystemBuilder:
     """
@@ -184,13 +193,24 @@ class SystemBuilder:
             ),
             singleton=True)
             
-        # Model Router
-        self._container.register_factory('ModelRouter',
-            lambda c: ModelRouter(
+        # Model Router (Phase 2: with MarginalAnalyzer)
+        # Note: MarginalAnalyzer must be registered first
+        def create_router(c):
+            try:
+                marginal_analyzer = c.get('MarginalAnalyzer')
+            except:
+                marginal_analyzer = None
+
+            return ModelRouter(
                 c.get('EconomicManager'),
                 event_bus=c.get('EventBus'),
-                prompt_manager=c.get('PromptManager')
-            ),
+                prompt_manager=c.get('PromptManager'),
+                config=c.get('SystemConfig'),
+                marginal_analyzer=marginal_analyzer
+            )
+
+        self._container.register_factory('ModelRouter',
+            create_router,
             singleton=True)
             
         # Dialogue Manager (Enhanced in Phase 3)
@@ -217,6 +237,51 @@ class SystemBuilder:
                 c.get('ModelRouter'),
                 event_bus=c.get('EventBus')
             ),
+            singleton=True)
+
+        # ResourceMonitor (Phase 1)
+        self._container.register_factory('ResourceMonitor',
+            lambda c: ResourceMonitor(
+                c.get('EconomicManager'),
+                c.get('Scribe'),
+                event_bus=c.get('EventBus'),
+                config=c.get('SystemConfig')
+            ),
+            singleton=True)
+
+        # MarginalAnalyzer (Phase 2)
+        self._container.register_factory('MarginalAnalyzer',
+            lambda c: MarginalAnalyzer(
+                self._config.database.path,
+                c.get('Scribe'),
+                c.get('EconomicManager')
+            ),
+            singleton=True)
+
+        # EconomicCrisisHandler (Phase 3)
+        # Note: Must be registered after HierarchyManager, Scheduler, IncomeSeeker
+        def create_crisis_handler(c):
+            try:
+                return EconomicCrisisHandler(
+                    c.get('Scribe'),
+                    c.get('HierarchyManager'),
+                    c.get('AutonomousScheduler'),
+                    c.get('IncomeSeeker'),
+                    c.get('EconomicManager'),
+                    event_bus=c.get('EventBus')
+                )
+            except Exception as e:
+                # Return a stub if dependencies not available yet
+                from modules.scribe import Scribe
+                return EconomicCrisisHandler(
+                    c.get('Scribe'),
+                    None, None, None,
+                    c.get('EconomicManager'),
+                    event_bus=c.get('EventBus')
+                )
+
+        self._container.register_factory('EconomicCrisisHandler',
+            create_crisis_handler,
             singleton=True)
     
     def _register_autonomous_services(self):

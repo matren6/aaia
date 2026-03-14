@@ -1,0 +1,26 @@
+# Test commands for runtime settings management
+# Use with: python packages/main.py --cmd-file scripts/test_settings.txt --autoexit
+
+# View all settings
+config
+
+# View specific settings
+config get llm.default_provider
+config get database.timeout
+config get economics.initial_balance
+
+# Modify settings
+config set llm.default_provider openai
+config get llm.default_provider
+
+config set database.timeout 60
+config get database.timeout
+
+config set economics.initial_balance 500.0
+config get economics.initial_balance
+
+config set evolution.safety_mode false
+config get evolution.safety_mode
+
+# View updated settings
+config

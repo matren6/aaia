@@ -76,10 +76,17 @@ class Arbiter:
         ))
         
         self._init_container()
-        
+
         # Initialize hierarchy
         self.init_hierarchy()
-        
+
+        # Start resource monitoring (Phase 1)
+        try:
+            resource_monitor = self.container.get('ResourceMonitor')
+            resource_monitor.start()
+        except Exception as e:
+            print(f"Warning: Resource monitoring failed to start: {e}")
+
         # Publish ready event
         self.event_bus.publish(Event(
             type=EventType.SYSTEM_STARTUP,
@@ -213,6 +220,16 @@ class Arbiter:
     def income_seeker(self):
         """Phase 2.2: Income opportunity seeking"""
         return self.container.get('IncomeSeeker')
+
+    @property
+    def marginal_analyzer(self):
+        """Phase 2: Marginal analysis system"""
+        return self.container.get('MarginalAnalyzer')
+
+    @property
+    def crisis_handler(self):
+        """Phase 3: Economic crisis handler"""
+        return self.container.get('EconomicCrisisHandler')
 
     @property
     def trait_extractor(self):
@@ -396,10 +413,17 @@ class Arbiter:
                             print('\nAvailable Commands:')
                             print('\n--- Status & Information ---')
                             print('  status           - Show system status')
+                            print('  log              - Show recent action log')
                             print('  tools            - List created tools')
                             print('  goals            - Show current goals')
                             print('  tasks            - Show scheduled tasks')
                             print('  hierarchy        - Show hierarchy of needs')
+                            print('\n--- Tool Management ---')
+                            print('  create tool <name> | <description> - Create a new tool (AI generates code)')
+                            print('  delete tool <name> - Delete a tool')
+                            print('\n--- Goal Management ---')
+                            print('  generate goals   - Generate new goals based on patterns')
+                            print('  next action      - Propose next autonomous action')
                             print('\n--- Master Model (Phase 2-3) ---')
                             print('  master-profile   - Show master psychological profile')
                             print('  master-traits    - Show master traits by category')
@@ -407,12 +431,31 @@ class Arbiter:
                             print('\n--- Economics (Phase 2-4) ---')
                             print('  income           - Show 30-day profitability report')
                             print('  opportunities    - Show income opportunities (ranked)')
+                            print('  resource-costs   - Show resource usage costs')
+                            print('  crisis-status    - Show economic crisis status')
+                            print('  tier-status      - Show hierarchy tier progression')
                             print('\n--- Analysis & Intelligence (Phase 5) ---')
                             print('  insights         - Generate weekly AI insights')
                             print('  predictions      - Predict next preferences')
                             print('  profitability    - Comprehensive profitability analysis')
                             print('  cost-optimization - Find cost reduction opportunities')
                             print('  growth-areas     - Identify growth opportunities')
+                            print('  marginal-analysis - Show recent marginal analysis decisions')
+                            print('  provider-stats   - Show LLM provider statistics')
+                            print('\n--- Self-Development ---')
+                            print('  diagnose         - Run system self-diagnosis')
+                            print('  evolve           - Run full evolution pipeline')
+                            print('  evolution status - Show evolution status')
+                            print('  discover         - Discover new capabilities')
+                            print('  explore          - Explore environment')
+                            print('  orchestrate      - Run major evolution orchestration')
+                            print('\n--- Prompt Management ---')
+                            print('  prompts          - List all available prompts')
+                            print('  prompt list      - List prompts by category')
+                            print('\n--- Configuration ---')
+                            print('  config           - Show all runtime settings')
+                            print('  config set KEY VALUE - Set a runtime setting')
+                            print('  config get KEY   - Get a specific setting')
                             print('\n--- System ---')
                             print('  help             - Show this help message')
                             print('  exit             - Shutdown system')
@@ -540,27 +583,28 @@ class Arbiter:
                                 print(f"Profit Margin: {metrics.get('profit_margin', 0):.1f}%")
                                 status = "✅ PROFITABLE" if metrics.get('is_profitable') else "❌ NOT PROFITABLE"
                                 print(f"Status: {status}")
+                        elif low == 'resource-costs':
+                            # Phase 1: Show resource costs
+                            print("\n=== Resource Costs (Last 30 Days) ===\n")
+                            resource_monitor = self.container.get('ResourceMonitor')
+                            costs = resource_monitor.get_resource_costs(days=30)
 
-                                # Show alerts
-                                alerts = report.get('alerts', [])
-                                if alerts:
-                                    print(f"\nAlerts:")
-                                    for alert in alerts:
-                                        print(f"  {alert}")
+                            if costs:
+                                total = 0
+                                for resource_type, cost in sorted(costs.items()):
+                                    print(f"  {resource_type.capitalize()}: ${cost:.4f}")
+                                    total += cost
+                                print(f"\n  Total: ${total:.4f}")
+                            else:
+                                print("  No resource costs recorded yet.")
 
-                                # Show trends
-                                trends = report.get('trends', {})
-                                if trends.get('change_percent'):
-                                    change = trends.get('change_percent')
-                                    arrow = "📈" if change > 0 else "📉"
-                                    print(f"\nTrend: {arrow} {change:+.1f}%")
-
-                                # Show recommendations
-                                recs = report.get('recommendations', [])
-                                if recs:
-                                    print(f"\nRecommendations:")
-                                    for rec in recs[:3]:  # Top 3
-                                        print(f"  → {rec}")
+                            # Show current usage
+                            usage = resource_monitor.get_current_usage()
+                            print(f"\n=== Current Usage ===")
+                            print(f"  CPU: {usage['cpu_percent']:.1f}%")
+                            print(f"  Memory: {usage['memory_mb']:.1f} MB ({usage['memory_percent']:.1f}%)")
+                            print(f"  Threads: {usage['num_threads']}")
+                            print(f"  System Power: {usage['power_draw_watts']:.0f}W")
                         elif low == 'cost-optimization':
                             # Phase 5.3: Cost optimization
                             print("\nAnalyzing cost optimization opportunities...")
@@ -590,6 +634,228 @@ class Arbiter:
                                     print(f"  Value: {area.get('value', 'N/A')}")
                                     print(f"  Timeline: {area.get('timeline', 'N/A')}")
                                     print()
+                        elif low == 'marginal-analysis':
+                            # Phase 2: Show recent marginal analysis decisions
+                            print("\n=== Marginal Analysis History (Last 24 Hours) ===\n")
+                            marginal_analyzer = self.container.get('MarginalAnalyzer')
+                            history = marginal_analyzer.get_analysis_history(hours=24)
+
+                            if history:
+                                for entry in history[:15]:
+                                    print(f"[{entry['timestamp']}]")
+                                    print(f"  Task: {entry['task_type']} ({entry['complexity']})")
+                                    print(f"  Selected: {entry['selected']}")
+                                    print(f"  Quality: {entry['quality']:.2f} | Cost: ${entry['cost']:.4f} | Utility/$: {entry['utility_per_dollar']:.4f}")
+                                    print(f"  Alternatives: {entry['alternatives']} | Opportunity Cost: ${entry['opportunity_cost']:.4f}")
+                                    print(f"  Reasoning: {entry['reasoning']}\n")
+                            else:
+                                print("  No marginal analysis decisions recorded yet.")
+                        elif low == 'provider-stats':
+                            # Phase 2: Show provider statistics
+                            print("\n=== Provider Statistics (Last 30 Days) ===\n")
+                            marginal_analyzer = self.container.get('MarginalAnalyzer')
+
+                            providers = ['ollama', 'github', 'venice', 'openai', 'azure']
+                            for provider in providers:
+                                stats = marginal_analyzer.get_provider_stats(provider, days=30)
+                                if stats and stats.get('total_requests', 0) > 0:
+                                    print(f"{provider.upper()}:")
+                                    print(f"  Requests: {stats['total_requests']} (Success: {stats['success_rate']:.0f}%)")
+                                    print(f"  Quality: {stats['avg_quality']:.2f} | Response Time: {stats['avg_response_time']:.2f}s")
+                                    print(f"  Cost: ${stats['avg_cost']:.4f} avg, ${stats['total_cost']:.2f} total")
+                                    print(f"  Avg Tokens: {stats['avg_tokens']}\n")
+                        elif low == 'crisis-status':
+                            # Phase 3: Show crisis status
+                            print("\n=== Economic Crisis Status ===\n")
+                            crisis_handler = self.container.get('EconomicCrisisHandler')
+                            status = crisis_handler.get_status()
+
+                            crisis_emoji = "🚨" if status['in_crisis'] else "✅"
+                            print(f"Status: {crisis_emoji} {status['status']}")
+                            print(f"Current Balance: ${status['current_balance']:.2f}")
+                            print(f"Crisis Threshold: ${status['crisis_threshold']:.2f}")
+                            print(f"Recovery Threshold: ${status['recovery_threshold']:.2f}\n")
+
+                            if status['in_crisis']:
+                                print(f"⚠️  IN CRISIS MODE")
+                                print(f"   Balance to recovery: ${status['balance_to_recovery']:.2f}")
+                                print(f"   - Tier locked to 1 (Survival)")
+                                print(f"   - Expensive tasks paused")
+                                print(f"   - Emergency income mode enabled")
+                            else:
+                                print(f"✅ NORMAL OPERATIONS")
+                                if status['balance_to_crisis']:
+                                    print(f"   Balance to crisis: ${status['balance_to_crisis']:.2f}")
+                        elif low == 'tier-status':
+                            # Phase 3: Show tier progression status
+                            print("\n=== Hierarchy of Needs Status ===\n")
+                            current_tier = self.hierarchy_manager.get_current_tier()
+                            all_tiers = self.hierarchy_manager.get_all_tiers()
+
+                            print(f"Current Focus: Tier {current_tier['tier']} - {current_tier['name']}")
+                            print(f"Progress: {current_tier['progress']*100:.1f}%\n")
+
+                            for tier in all_tiers:
+                                marker = "►" if tier['focus'] else " "
+                                print(f"{marker} Tier {tier['tier']}: {tier['name']}")
+                                print(f"   Progress: {tier['progress']*100:.1f}%")
+
+                                # Show requirements for current + next tier
+                                if tier['tier'] == current_tier['tier']:
+                                    reqs = self.hierarchy_manager.get_tier_requirements(tier['tier'])
+                                    print(f"   Requirements:")
+                                    for req in reqs.get('requirements', []):
+                                        print(f"     • {req}")
+                                print()
+                        elif low == 'log':
+                            # Show recent action log
+                            try:
+                                conn = sqlite3.connect(self.scribe.db_path)
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT timestamp, action, reasoning, outcome FROM action_log ORDER BY timestamp DESC LIMIT 20")
+                                logs = cursor.fetchall()
+                                conn.close()
+                                print("\n=== Recent Actions ===\n")
+                                for log in logs:
+                                    print(f"[{log[0]}] {log[1]}")
+                                    if log[2]:
+                                        print(f"  Reasoning: {log[2][:100]}")
+                                    print(f"  Outcome: {log[3]}")
+                                    print()
+                            except Exception as e:
+                                print(f"Error retrieving logs: {e}")
+                        elif low.startswith('create tool'):
+                            # Create a new tool
+                            parts = cl.split('|', 1)
+                            if len(parts) == 2:
+                                tool_name = parts[0].replace('create tool', '').strip()
+                                description = parts[1].strip()
+                                print(f"\nCreating tool '{tool_name}'...")
+                                result = self.forge.create_tool(tool_name, description)
+                                if result.get('success'):
+                                    print(f"✅ Tool created successfully!")
+                                    print(f"   Path: {result.get('path')}")
+                                else:
+                                    print(f"❌ Tool creation failed: {result.get('error')}")
+                            else:
+                                print("Usage: create tool <name> | <description>")
+                        elif low.startswith('delete tool'):
+                            # Delete a tool
+                            tool_name = cl.replace('delete tool', '').strip()
+                            if tool_name:
+                                print(f"\nDeleting tool '{tool_name}'...")
+                                result = self.forge.delete_tool(tool_name)
+                                if result.get('success'):
+                                    print(f"✅ Tool deleted successfully")
+                                else:
+                                    print(f"❌ Tool deletion failed: {result.get('error')}")
+                            else:
+                                print("Usage: delete tool <name>")
+                        elif low == 'generate goals':
+                            # Generate new goals
+                            print("\nGenerating goals based on recent activity...")
+                            goals = self.goals.generate_goals()
+                            if goals:
+                                print("✅ Goals generated:")
+                                for goal in goals:
+                                    print(f"  • {goal}")
+                            else:
+                                print("No goals generated")
+                        elif low == 'next action':
+                            # Propose next autonomous action
+                            print("\nProposing next action...")
+                            action = self.scheduler.propose_next_action()
+                            print(f"Next Action: {action}")
+                        elif low == 'diagnose':
+                            # Run system self-diagnosis
+                            print("\nRunning system self-diagnosis...")
+                            result = self.diagnosis.perform_full_diagnosis()
+                            print(f"\n=== Diagnosis Results ===")
+                            print(f"Health: {result.get('health', 'Unknown')}")
+                            if result.get('issues'):
+                                print(f"\nIssues Found ({len(result.get('issues', []))}):")
+                                for issue in result.get('issues', [])[:5]:
+                                    print(f"  • {issue}")
+                            if result.get('recommendations'):
+                                print(f"\nRecommendations:")
+                                for rec in result.get('recommendations', [])[:5]:
+                                    print(f"  → {rec}")
+                        elif low == 'evolve':
+                            # Run full evolution
+                            print("\nRunning evolution cycle...")
+                            result = self.evolution.run_evolution_cycle()
+                            print(f"Evolution Status: {result.get('status', 'Unknown')}")
+                            if result.get('changes_made'):
+                                print(f"Changes Made: {result.get('changes_made')}")
+                        elif low == 'evolution status':
+                            # Show evolution status
+                            print("\n=== Evolution Status ===")
+                            status = self.pipeline.get_status()
+                            print(f"Active: {status.get('active', False)}")
+                            print(f"Last Run: {status.get('last_run', 'Never')}")
+                            print(f"Modifications: {status.get('total_modifications', 0)}")
+                        elif low == 'discover':
+                            # Discover new capabilities
+                            print("\nDiscovering capabilities...")
+                            capabilities = self.capability_discovery.discover_new_capabilities()
+                            if capabilities:
+                                print(f"✅ Discovered {len(capabilities)} new capabilities:")
+                                for cap in capabilities[:5]:
+                                    print(f"  • {cap}")
+                            else:
+                                print("No new capabilities discovered")
+                        elif low == 'explore':
+                            # Explore environment
+                            print("\nExploring environment...")
+                            result = self.environment_explorer.explore_environment()
+                            print(f"Environment: {result.get('summary', 'Unknown')}")
+                            if result.get('findings'):
+                                print(f"\nFindings:")
+                                for finding in result.get('findings', [])[:5]:
+                                    print(f"  • {finding}")
+                        elif low == 'orchestrate':
+                            # Run major evolution orchestration
+                            print("\nRunning evolution orchestration...")
+                            result = self.pipeline.run_major_evolution()
+                            print(f"Status: {result.get('status', 'Unknown')}")
+                            if result.get('summary'):
+                                print(f"Summary: {result.get('summary')}")
+                        elif low == 'prompts' or low == 'prompt list':
+                            # List available prompts
+                            print("\n=== Available Prompts ===\n")
+                            prompts = self.prompt_manager.list_prompts()
+                            for category, prompt_list in prompts.items():
+                                print(f"{category}:")
+                                for prompt in prompt_list:
+                                    print(f"  • {prompt}")
+                                print()
+                        elif low.startswith('config'):
+                            # Configuration management commands
+                            parts = cl.split(maxsplit=3)
+
+                            if len(parts) == 1:
+                                # Show all settings
+                                self._show_all_settings()
+                            elif len(parts) >= 2:
+                                cmd_type = parts[1].lower()
+
+                                if cmd_type == 'get' and len(parts) >= 3:
+                                    # Get specific setting
+                                    key = parts[2]
+                                    self._get_setting(key)
+                                elif cmd_type == 'set' and len(parts) >= 4:
+                                    # Set specific setting
+                                    key = parts[2]
+                                    value = parts[3]
+                                    self._set_setting(key, value)
+                                else:
+                                    print("Usage:")
+                                    print("  config           - Show all settings")
+                                    print("  config get KEY   - Get a specific setting (e.g., config get llm.default_provider)")
+                                    print("  config set KEY VALUE - Set a setting (e.g., config set llm.default_provider openai)")
+                            else:
+                                print("Invalid config command. Use 'help' for details.")
+
                         else:
                             resp = self.process_command(cl)
                             print(f"Arbiter: {resp}")
@@ -613,10 +879,418 @@ class Arbiter:
                 if command.lower() == 'exit':
                     print('Shutting down...')
                     break
-                # reuse the big interactive body by delegating to process_command
+
+                # Handle built-in commands directly (help, status, tools, etc.)
+                cl = command.strip()
+                low = cl.lower()
+
                 try:
-                    resp = self.process_command(command)
-                    print(f"\nArbiter: {resp}")
+                    if low == 'help':
+                        print('Type commands interactively; use --cmd to pass commands')
+                        print('\nAvailable Commands:')
+                        print('\n--- Status & Information ---')
+                        print('  status           - Show system status')
+                        print('  log              - Show recent action log')
+                        print('  tools            - List created tools')
+                        print('  goals            - Show current goals')
+                        print('  tasks            - Show scheduled tasks')
+                        print('  hierarchy        - Show hierarchy of needs')
+                        print('\n--- Tool Management ---')
+                        print('  create tool <name> | <description> - Create a new tool (AI generates code)')
+                        print('  delete tool <name> - Delete a tool')
+                        print('\n--- Goal Management ---')
+                        print('  generate goals   - Generate new goals based on patterns')
+                        print('  next action      - Propose next autonomous action')
+                        print('\n--- Master Model (Phase 2-3) ---')
+                        print('  master-profile   - Show master psychological profile')
+                        print('  master-traits    - Show master traits by category')
+                        print('  reflect          - Run master model reflection cycle')
+                        print('\n--- Economics (Phase 2-4) ---')
+                        print('  income           - Show 30-day profitability report')
+                        print('  opportunities    - Show income opportunities (ranked)')
+                        print('  resource-costs   - Show resource usage costs')
+                        print('  crisis-status    - Show economic crisis status')
+                        print('  tier-status      - Show hierarchy tier progression')
+                        print('\n--- Analysis & Intelligence (Phase 5) ---')
+                        print('  insights         - Generate weekly AI insights')
+                        print('  predictions      - Predict next preferences')
+                        print('  profitability    - Comprehensive profitability analysis')
+                        print('  cost-optimization - Find cost reduction opportunities')
+                        print('  growth-areas     - Identify growth opportunities')
+                        print('  marginal-analysis - Show recent marginal analysis decisions')
+                        print('  provider-stats   - Show LLM provider statistics')
+                        print('\n--- Self-Development ---')
+                        print('  diagnose         - Run system self-diagnosis')
+                        print('  evolve           - Run full evolution pipeline')
+                        print('  evolution status - Show evolution status')
+                        print('  discover         - Discover new capabilities')
+                        print('  explore          - Explore environment')
+                        print('  orchestrate      - Run major evolution orchestration')
+                        print('\n--- Prompt Management ---')
+                        print('  prompts          - List all available prompts')
+                        print('  prompt list      - List prompts by category')
+                        print('\n--- Configuration ---')
+                        print('  config           - Show all runtime settings')
+                        print('  config set KEY VALUE - Set a runtime setting')
+                        print('  config get KEY   - Get a specific setting')
+                        print('\n--- System ---')
+                        print('  help             - Show this help message')
+                        print('  exit             - Shutdown system')
+                    elif low == 'status':
+                        try:
+                            conn = sqlite3.connect(self.scribe.db_path)
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT COUNT(*) FROM action_log")
+                            action_count = cursor.fetchone()[0]
+                            cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
+                            balance_row = cursor.fetchone()
+                            balance = balance_row[0] if balance_row else '100.00'
+                            conn.close()
+                        except Exception:
+                            action_count = 0
+                            balance = '100.00'
+                        current_tier = self.hierarchy_manager.get_current_tier()
+                        print(f"\n=== System Status ===")
+                        print(f"Actions logged: {action_count}")
+                        print(f"Current balance: ${balance}")
+                        print(f"Focus tier: {current_tier['name']} (Tier {current_tier['tier']})")
+                    elif low == 'tools':
+                        tools = self.forge.list_tools()
+                        if not tools:
+                            print("No tools created yet.")
+                        else:
+                            print(f"Registered tools ({len(tools)}):")
+                            for tool in tools:
+                                print(f"  - {tool['name']}: {tool.get('description','')}")
+                    elif low == 'master-profile':
+                        profile = self.master_model.export_master_profile()
+                        print(profile)
+                    elif low == 'master-traits':
+                        profile = self.master_model.get_master_profile()
+                        print("\n=== Master Psychological Profile ===\n")
+                        for category, traits in profile.items():
+                            if traits:
+                                print(f"\n{category.replace('_', ' ').title()}:")
+                                for trait in traits:
+                                    conf_emoji = self.master_model._confidence_emoji(trait['confidence'])
+                                    print(f"  • {trait['name']}: {trait['value']} {conf_emoji}")
+                    elif low == 'income':
+                        report = self.economics.get_profitability_report(days=30)
+                        print("\n=== Profitability Report (Last 30 Days) ===")
+                        print(f"Total Income: ${report.get('total_income', 0):.2f}")
+                        print(f"Total Costs: ${report.get('total_costs', 0):.2f}")
+                        print(f"Net Profit: ${report.get('net_profit', 0):.2f}")
+                        profit_margin = report.get('profit_margin', 0)
+                        print(f"Profit Margin: {profit_margin:.1f}%")
+                        is_profitable = report.get('is_profitable', False)
+                        status = "✅ PROFITABLE" if is_profitable else "❌ NOT PROFITABLE"
+                        print(f"Status: {status}")
+                    elif low == 'opportunities':
+                        opportunities = self.income_seeker.prioritize_opportunities()
+                        if not opportunities:
+                            print("No income opportunities identified yet.")
+                        else:
+                            print("\n=== Income Opportunities (Prioritized) ===\n")
+                            for i, opp in enumerate(opportunities[:5], 1):
+                                score_percent = opp.get('viability_score', 0) * 100
+                                print(f"{i}. {opp.get('description', 'Unknown')}")
+                                print(f"   Type: {opp.get('type', 'Unknown')}")
+                                print(f"   Value: ${opp.get('estimated_value', 0):.0f}")
+                                print(f"   Viability: {score_percent:.0f}%")
+                                print(f"   Effort: {opp.get('effort', 'Unknown')}")
+                                print()
+                    elif low == 'reflect':
+                        print("\nRunning master model reflection cycle...")
+                        summary = self.master_model.reflection_cycle()
+                        print(f"Interactions Analyzed: {summary.get('interactions_analyzed', 0)}")
+                        print(f"Traits Updated: {summary.get('traits_updated', 0)}")
+                        if summary.get('insights'):
+                            print(f"Insights: {summary.get('insights')[:200]}...")
+                    elif low == 'insights':
+                        print("\nGenerating weekly insights...")
+                        profile = self.master_model.get_master_profile()
+                        recent = self.master_model.get_recent_interactions(days=7)
+                        insights = self.reflection_analyzer.generate_weekly_insights(profile, recent)
+                        if insights.get('success', False):
+                            print("\n=== Weekly Insights ===\n")
+                            for insight in insights.get('key_insights', []):
+                                print(f"• {insight}")
+                            if insights.get('focus_areas'):
+                                print(f"\nFocus Areas:")
+                                for area in insights.get('focus_areas', []):
+                                    print(f"  - {area}")
+                            if insights.get('recommendations'):
+                                print(f"\nRecommendations:")
+                                for rec in insights.get('recommendations', []):
+                                    print(f"  → {rec}")
+                    elif low == 'predictions':
+                        print("\nPredicting next preferences...")
+                        profile = self.master_model.get_master_profile()
+                        recent = self.master_model.get_recent_interactions(days=30)
+                        predictions = self.reflection_analyzer.predict_next_preferences(profile, recent)
+                        if predictions.get('predictions'):
+                            print("\n=== Predicted Preferences ===\n")
+                            for pred in predictions.get('predictions', []):
+                                conf_pct = pred.get('confidence', 0) * 100
+                                print(f"• {pred.get('prediction', 'Unknown')}")
+                                print(f"  Confidence: {conf_pct:.0f}%")
+                                print(f"  Reasoning: {pred.get('reasoning', 'N/A')}\n")
+                    elif low == 'profitability':
+                        print("\nGenerating comprehensive profitability report...")
+                        report = self.profitability_reporter.generate_comprehensive_report(days=30)
+                        if report.get('metrics'):
+                            metrics = report.get('metrics', {})
+                            print("\n=== Profitability Report (30 Days) ===")
+                            print(f"Total Income: ${metrics.get('total_income', 0):.2f}")
+                            print(f"Total Costs: ${metrics.get('total_costs', 0):.2f}")
+                            print(f"Net Profit: ${metrics.get('net_profit', 0):.2f}")
+                            print(f"Profit Margin: {metrics.get('profit_margin', 0):.1f}%")
+                            status = "✅ PROFITABLE" if metrics.get('is_profitable') else "❌ NOT PROFITABLE"
+                            print(f"Status: {status}")
+                    elif low == 'cost-optimization':
+                        print("\nAnalyzing cost optimization opportunities...")
+                        optimizations = self.profitability_reporter.identify_cost_optimization()
+                        if optimizations:
+                            print("\n=== Cost Optimization Opportunities ===\n")
+                            for opt in optimizations[:5]:
+                                savings_pct = opt.get('savings_percentage', 0)
+                                print(f"• {opt.get('opportunity', 'Unknown')}")
+                                print(f"  Potential Savings: ${opt.get('potential_savings', 0):.0f} ({savings_pct:.0f}%)")
+                                print(f"  Implementation: {opt.get('implementation_effort', 'Unknown')}")
+                                print(f"  Timeline: {opt.get('timeline', 'Unknown')}")
+                                print()
+                    elif low == 'growth-areas':
+                        print("\nIdentifying growth areas...")
+                        profile = self.master_model.get_master_profile()
+                        growth_areas = self.reflection_analyzer.identify_growth_areas(profile)
+                        if growth_areas:
+                            print("\n=== Growth Opportunities ===\n")
+                            for area in growth_areas[:5]:
+                                print(f"• {area.get('area', 'Unknown')}")
+                                print(f"  Current: {area.get('current_state', 'N/A')}")
+                                print(f"  Potential: {area.get('potential_improvement', 'N/A')}")
+                                print(f"  Value: {area.get('value', 'N/A')}")
+                                print(f"  Timeline: {area.get('timeline', 'N/A')}")
+                                print()
+                    elif low == 'resource-costs':
+                        print("\n=== Resource Costs (Last 30 Days) ===\n")
+                        resource_monitor = self.container.get('ResourceMonitor')
+                        costs = resource_monitor.get_resource_costs(days=30)
+                        if costs:
+                            total = 0
+                            for resource_type, cost in sorted(costs.items()):
+                                print(f"  {resource_type.capitalize()}: ${cost:.4f}")
+                                total += cost
+                            print(f"\n  Total: ${total:.4f}")
+                        else:
+                            print("  No resource costs recorded yet.")
+                        usage = resource_monitor.get_current_usage()
+                        print(f"\n=== Current Usage ===")
+                        print(f"  CPU: {usage['cpu_percent']:.1f}%")
+                        print(f"  Memory: {usage['memory_mb']:.1f} MB ({usage['memory_percent']:.1f}%)")
+                        print(f"  Threads: {usage['num_threads']}")
+                        print(f"  System Power: {usage['power_draw_watts']:.0f}W")
+                    elif low == 'marginal-analysis':
+                        print("\n=== Marginal Analysis History (Last 24 Hours) ===\n")
+                        marginal_analyzer = self.container.get('MarginalAnalyzer')
+                        history = marginal_analyzer.get_analysis_history(hours=24)
+                        if history:
+                            for entry in history[:15]:
+                                print(f"[{entry['timestamp']}]")
+                                print(f"  Task: {entry['task_type']} ({entry['complexity']})")
+                                print(f"  Selected: {entry['selected']}")
+                                print(f"  Quality: {entry['quality']:.2f} | Cost: ${entry['cost']:.4f} | Utility/$: {entry['utility_per_dollar']:.4f}")
+                                print(f"  Alternatives: {entry['alternatives']} | Opportunity Cost: ${entry['opportunity_cost']:.4f}")
+                                print(f"  Reasoning: {entry['reasoning']}\n")
+                        else:
+                            print("  No marginal analysis decisions recorded yet.")
+                    elif low == 'provider-stats':
+                        print("\n=== Provider Statistics (Last 30 Days) ===\n")
+                        marginal_analyzer = self.container.get('MarginalAnalyzer')
+                        providers = ['ollama', 'github', 'venice', 'openai', 'azure']
+                        for provider in providers:
+                            stats = marginal_analyzer.get_provider_stats(provider, days=30)
+                            if stats and stats.get('total_requests', 0) > 0:
+                                print(f"{provider.upper()}:")
+                                print(f"  Requests: {stats['total_requests']} (Success: {stats['success_rate']:.0f}%)")
+                                print(f"  Quality: {stats['avg_quality']:.2f} | Response Time: {stats['avg_response_time']:.2f}s")
+                                print(f"  Cost: ${stats['avg_cost']:.4f} avg, ${stats['total_cost']:.2f} total")
+                                print(f"  Avg Tokens: {stats['avg_tokens']}\n")
+                    elif low == 'crisis-status':
+                        print("\n=== Economic Crisis Status ===\n")
+                        crisis_handler = self.container.get('EconomicCrisisHandler')
+                        status = crisis_handler.get_status()
+                        crisis_emoji = "🚨" if status['in_crisis'] else "✅"
+                        print(f"Status: {crisis_emoji} {status['status']}")
+                        print(f"Current Balance: ${status['current_balance']:.2f}")
+                        print(f"Crisis Threshold: ${status['crisis_threshold']:.2f}")
+                        print(f"Recovery Threshold: ${status['recovery_threshold']:.2f}\n")
+                        if status['in_crisis']:
+                            print(f"⚠️  IN CRISIS MODE")
+                            print(f"   Balance to recovery: ${status['balance_to_recovery']:.2f}")
+                            print(f"   - Tier locked to 1 (Survival)")
+                            print(f"   - Expensive tasks paused")
+                            print(f"   - Emergency income mode enabled")
+                        else:
+                            print(f"✅ NORMAL OPERATIONS")
+                            if status['balance_to_crisis']:
+                                print(f"   Balance to crisis: ${status['balance_to_crisis']:.2f}")
+                    elif low == 'tier-status':
+                        print("\n=== Hierarchy of Needs Status ===\n")
+                        current_tier = self.hierarchy_manager.get_current_tier()
+                        all_tiers = self.hierarchy_manager.get_all_tiers()
+                        print(f"Current Focus: Tier {current_tier['tier']} - {current_tier['name']}")
+                        print(f"Progress: {current_tier['progress']*100:.1f}%\n")
+                        for tier in all_tiers:
+                            marker = "►" if tier['focus'] else " "
+                            print(f"{marker} Tier {tier['tier']}: {tier['name']}")
+                            print(f"   Progress: {tier['progress']*100:.1f}%")
+                            if tier['tier'] == current_tier['tier']:
+                                reqs = self.hierarchy_manager.get_tier_requirements(tier['tier'])
+                                print(f"   Requirements:")
+                                for req in reqs.get('requirements', []):
+                                    print(f"     • {req}")
+                            print()
+                    elif low == 'log':
+                        try:
+                            conn = sqlite3.connect(self.scribe.db_path)
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT timestamp, action, reasoning, outcome FROM action_log ORDER BY timestamp DESC LIMIT 20")
+                            logs = cursor.fetchall()
+                            conn.close()
+                            print("\n=== Recent Actions ===\n")
+                            for log in logs:
+                                print(f"[{log[0]}] {log[1]}")
+                                if log[2]:
+                                    print(f"  Reasoning: {log[2][:100]}")
+                                print(f"  Outcome: {log[3]}")
+                                print()
+                        except Exception as e:
+                            print(f"Error retrieving logs: {e}")
+                    elif low.startswith('create tool'):
+                        parts = cl.split('|', 1)
+                        if len(parts) == 2:
+                            tool_name = parts[0].replace('create tool', '').strip()
+                            description = parts[1].strip()
+                            print(f"\nCreating tool '{tool_name}'...")
+                            result = self.forge.create_tool(tool_name, description)
+                            if result.get('success'):
+                                print(f"✅ Tool created successfully!")
+                                print(f"   Path: {result.get('path')}")
+                            else:
+                                print(f"❌ Tool creation failed: {result.get('error')}")
+                        else:
+                            print("Usage: create tool <name> | <description>")
+                    elif low.startswith('delete tool'):
+                        tool_name = cl.replace('delete tool', '').strip()
+                        if tool_name:
+                            print(f"\nDeleting tool '{tool_name}'...")
+                            result = self.forge.delete_tool(tool_name)
+                            if result.get('success'):
+                                print(f"✅ Tool deleted successfully")
+                            else:
+                                print(f"❌ Tool deletion failed: {result.get('error')}")
+                        else:
+                            print("Usage: delete tool <name>")
+                    elif low == 'generate goals':
+                        print("\nGenerating goals based on recent activity...")
+                        goals = self.goals.generate_goals()
+                        if goals:
+                            print("✅ Goals generated:")
+                            for goal in goals:
+                                print(f"  • {goal}")
+                        else:
+                            print("No goals generated")
+                    elif low == 'next action':
+                        print("\nProposing next action...")
+                        action = self.scheduler.propose_next_action()
+                        print(f"Next Action: {action}")
+                    elif low == 'diagnose':
+                        print("\nRunning system self-diagnosis...")
+                        result = self.diagnosis.perform_full_diagnosis()
+                        print(f"\n=== Diagnosis Results ===")
+                        print(f"Health: {result.get('health', 'Unknown')}")
+                        if result.get('issues'):
+                            print(f"\nIssues Found ({len(result.get('issues', []))}):")
+                            for issue in result.get('issues', [])[:5]:
+                                print(f"  • {issue}")
+                        if result.get('recommendations'):
+                            print(f"\nRecommendations:")
+                            for rec in result.get('recommendations', [])[:5]:
+                                print(f"  → {rec}")
+                    elif low == 'evolve':
+                        print("\nRunning evolution cycle...")
+                        result = self.evolution.run_evolution_cycle()
+                        print(f"Evolution Status: {result.get('status', 'Unknown')}")
+                        if result.get('changes_made'):
+                            print(f"Changes Made: {result.get('changes_made')}")
+                    elif low == 'evolution status':
+                        print("\n=== Evolution Status ===")
+                        status = self.pipeline.get_status()
+                        print(f"Active: {status.get('active', False)}")
+                        print(f"Last Run: {status.get('last_run', 'Never')}")
+                        print(f"Modifications: {status.get('total_modifications', 0)}")
+                    elif low == 'discover':
+                        print("\nDiscovering capabilities...")
+                        capabilities = self.capability_discovery.discover_new_capabilities()
+                        if capabilities:
+                            print(f"✅ Discovered {len(capabilities)} new capabilities:")
+                            for cap in capabilities[:5]:
+                                print(f"  • {cap}")
+                        else:
+                            print("No new capabilities discovered")
+                    elif low == 'explore':
+                        print("\nExploring environment...")
+                        result = self.environment_explorer.explore_environment()
+                        print(f"Environment: {result.get('summary', 'Unknown')}")
+                        if result.get('findings'):
+                            print(f"\nFindings:")
+                            for finding in result.get('findings', [])[:5]:
+                                print(f"  • {finding}")
+                    elif low == 'orchestrate':
+                        print("\nRunning evolution orchestration...")
+                        result = self.pipeline.run_major_evolution()
+                        print(f"Status: {result.get('status', 'Unknown')}")
+                        if result.get('summary'):
+                            print(f"Summary: {result.get('summary')}")
+                    elif low == 'prompts' or low == 'prompt list':
+                        print("\n=== Available Prompts ===\n")
+                        prompts = self.prompt_manager.list_prompts()
+                        for category, prompt_list in prompts.items():
+                            print(f"{category}:")
+                            for prompt in prompt_list:
+                                print(f"  • {prompt}")
+                            print()
+                    elif low == 'goals':
+                        self.show_goals()
+                    elif low == 'tasks':
+                        self.show_autonomous_tasks()
+                    elif low == 'hierarchy':
+                        self.hierarchy_manager.show_hierarchy()
+                    elif low.startswith('config'):
+                        parts = cl.split(maxsplit=3)
+                        if len(parts) == 1:
+                            self._show_all_settings()
+                        elif len(parts) >= 2:
+                            cmd_type = parts[1].lower()
+                            if cmd_type == 'get' and len(parts) >= 3:
+                                key = parts[2]
+                                self._get_setting(key)
+                            elif cmd_type == 'set' and len(parts) >= 4:
+                                key = parts[2]
+                                value = parts[3]
+                                self._set_setting(key, value)
+                            else:
+                                print("Usage:")
+                                print("  config           - Show all settings")
+                                print("  config get KEY   - Get a specific setting (e.g., config get llm.default_provider)")
+                                print("  config set KEY VALUE - Set a setting (e.g., config set llm.default_provider openai)")
+                        else:
+                            print("Invalid config command. Use 'help' for details.")
+                    else:
+                        # Delegate to process_command for other commands
+                        resp = self.process_command(command)
+                        print(f"\nArbiter: {resp}")
                 except Exception as e:
                     print(f"Error: {e}")
                     self.scribe.log_action('System error', f"Error processing command: {str(e)}", 'error')
@@ -696,7 +1370,130 @@ class Arbiter:
                     print(f"   Requirements: {', '.join(reqs['requirements'])}")
             print()
 
-        
+    def _show_all_settings(self):
+        """Display all current runtime settings"""
+        from modules.settings import get_config
+        from dataclasses import asdict
+
+        config = get_config()
+        settings_dict = asdict(config)
+
+        print("\n" + "=" * 70)
+        print("CURRENT RUNTIME SETTINGS")
+        print("=" * 70)
+
+        def print_dict(d, indent=0, prefix=""):
+            """Recursively print dictionary with indentation"""
+            for key, value in sorted(d.items()):
+                full_key = f"{prefix}.{key}" if prefix else key
+                if isinstance(value, dict):
+                    print(f"{'  ' * indent}[{full_key}]")
+                    print_dict(value, indent + 1, full_key)
+                else:
+                    # Format the value for display
+                    if isinstance(value, bool):
+                        val_str = "✓ enabled" if value else "✗ disabled"
+                    elif isinstance(value, float):
+                        val_str = f"{value:.4f}"
+                    else:
+                        val_str = str(value)
+                    print(f"{'  ' * indent}{full_key}: {val_str}")
+
+        print_dict(settings_dict)
+        print("=" * 70)
+
+    def _get_setting(self, key: str):
+        """Get a specific setting by dot-notation path"""
+        from modules.settings import get_config
+        from dataclasses import asdict
+
+        config = get_config()
+        settings_dict = asdict(config)
+
+        # Navigate the nested dictionary using dot notation
+        keys = key.split('.')
+        value = settings_dict
+
+        try:
+            for k in keys:
+                if isinstance(value, dict):
+                    value = value[k]
+                else:
+                    print(f"Error: Cannot access '{k}' in non-dictionary value")
+                    return
+
+            print(f"\n{key}: {value}")
+        except KeyError:
+            print(f"Error: Setting not found: {key}")
+            print(f"Available settings can be viewed with 'config' command")
+
+    def _set_setting(self, key: str, value_str: str):
+        """Set a runtime setting by dot-notation path"""
+        from modules.settings import get_config, set_config
+        from modules.bus import get_event_bus, Event, EventType
+        from dataclasses import asdict
+
+        config = get_config()
+
+        # Parse the value string to appropriate type
+        def parse_value(val_str: str, target_type):
+            """Convert string to appropriate type"""
+            if target_type == bool or target_type.__name__ == 'bool':
+                return val_str.lower() in ('true', '1', 'yes', 'enabled')
+            elif target_type == int or target_type.__name__ == 'int':
+                return int(val_str)
+            elif target_type == float or target_type.__name__ == 'float':
+                return float(val_str)
+            else:
+                return val_str
+
+        # Navigate to the setting and update it
+        keys = key.split('.')
+
+        try:
+            # Navigate through the path
+            current = config
+            for k in keys[:-1]:
+                if hasattr(current, k):
+                    current = getattr(current, k)
+                else:
+                    print(f"Error: Setting not found: {key}")
+                    print(f"Available settings can be viewed with 'config' command")
+                    return
+
+            # Get the final key
+            final_key = keys[-1]
+            if not hasattr(current, final_key):
+                print(f"Error: Setting not found: {key}")
+                print(f"Available settings can be viewed with 'config' command")
+                return
+
+            old_value = getattr(current, final_key)
+
+            # Determine the type from the existing value
+            target_type = type(old_value)
+
+            # Parse and set the new value
+            new_value = parse_value(value_str, target_type)
+            setattr(current, final_key, new_value)
+
+            # Update the global config (it's already modified in place)
+            set_config(config)
+
+            # Note: Event bus notification would go here if CONFIG_CHANGED event type existed
+            # For now, the change is updated in the singleton config
+
+
+            print(f"\n✓ Setting updated: {key}")
+            print(f"  Old value: {old_value} ({type(old_value).__name__})")
+            print(f"  New value: {new_value} ({type(new_value).__name__})")
+            print(f"\nNote: This change is in-memory only and will be lost on restart.")
+            print(f"      To persist changes, modify the .env file.")
+
+        except ValueError as e:
+            print(f"Error: Invalid value for setting '{key}': {e}")
+            print(f"Please provide a valid {target_type.__name__}")
+
     def add_evolution_commands(self):
         """Add evolution-related commands to help"""
         help_text = """
