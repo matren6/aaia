@@ -1,0 +1,8 @@
+{
+  "name": "evaluate_opportunity",
+  "description": "Evaluate viability of income opportunity",
+  "model": "llama3.2:3b",
+  "temperature": 0.3,
+  "variables": ["opportunity"],
+  "prompt": "Evaluate the viability of this income opportunity:\n\n{{opportunity}}\n\nScore based on:\n1. Feasibility - Can it actually be executed?\n2. Value/effort ratio - Is the payoff worth the work?\n3. Risk level - What could go wrong?\n4. Alignment - Does it fit with core capabilities?\n5. Market demand - Is there real demand?\n6. Competition - How many others can do this?\n7. Sustainability - Can it generate recurring income?\n\nProvide evaluation as JSON:\n{\n  \"viability_score\": 0.0-1.0,\n  \"feasibility\": 0.0-1.0,\n  \"value_effort_ratio\": 0.0-1.0,\n  \"risk_level\": \"low|medium|high\",\n  \"alignment\": 0.0-1.0,\n  \"market_demand\": \"low|medium|high\",\n  \"competition_level\": \"low|medium|high\",\n  \"sustainability\": \"one_time|short_term|recurring\",\n  \"reasoning\": \"Why this score?\",\n  \"risks\": [\"risk1\", \"risk2\", ...],\n  \"recommendations\": [\"recommendation1\", ...]\n}\n\nBe realistic and conservative with scoring."
+}

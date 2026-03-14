@@ -1,0 +1,8 @@
+{
+  "name": "identify_growth_areas",
+  "description": "Identify areas where master could grow or improve",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["master_profile", "focus_on"],
+  "prompt": "Based on master profile, identify growth opportunities in: {{focus_on}}\n\nMaster Profile:\n{{master_profile}}\n\nIdentify:\n1. Current limitations or gaps\n2. Potential capabilities to develop\n3. Blind spots the master might have\n4. Opportunities for improved efficiency\n5. Strategic advantages if developed\n\nFor each growth area:\n- What is the opportunity?\n- Why is it valuable?\n- How could it be developed?\n- What's the timeframe?\n- What resources are needed?\n\nReturn as JSON:\n[\n  {\n    \"area\": \"growth_area_name\",\n    \"current_state\": \"current capability/knowledge\",\n    \"potential_improvement\": \"what could be developed\",\n    \"value\": \"why it matters\",\n    \"approach\": \"how to develop\",\n    \"timeline\": \"short|medium|long_term\",\n    \"resource_requirements\": [\"requirement1\"],\n    \"priority_score\": 0.8\n  }\n]\n\nFocus on realistic, valuable improvements.\nConsider master's current trajectory.\nBe encouraging but honest about challenges."
+}

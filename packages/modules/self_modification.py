@@ -51,6 +51,7 @@ import shutil
 import importlib
 import sqlite3
 import sys
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -68,7 +69,15 @@ class SelfModification:
         self.event_bus = event_bus
         self.backup_dir = Path("backups")
         self.backup_dir.mkdir(exist_ok=True)
-        self.prompt_manager = prompt_manager
+        # Ensure PromptManager is available (prefer DI, fallback to singleton)
+        if prompt_manager is None:
+            try:
+                from modules.prompt_manager import get_prompt_manager
+                self.prompt_manager = get_prompt_manager()
+            except Exception:
+                self.prompt_manager = None
+        else:
+            self.prompt_manager = prompt_manager
 
     def analyze_own_code(self, module_name: str) -> Dict:
         """Analyze a module's code for improvement opportunities"""

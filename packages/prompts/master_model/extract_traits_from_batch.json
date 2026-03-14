@@ -1,0 +1,8 @@
+{
+  "name": "extract_traits_from_batch",
+  "description": "Extract psychological traits from multiple interactions",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["interactions_summary", "interaction_count", "trait_categories", "current_traits"],
+  "prompt": "Analyze these {{interaction_count}} master interactions to extract psychological trait patterns.\n\nInteraction Summary:\n{{interactions_summary}}\n\nAvailable Trait Categories:\n{{trait_categories}}\n\nCurrent Master Traits:\n{{current_traits}}\n\nAnalyze patterns across these {{interaction_count}} interactions and identify consistent traits about the master:\n1. What decision patterns emerge?\n2. What communication style is evident?\n3. What does the master prioritize?\n4. What is their risk tolerance?\n5. How do they learn best?\n\nReturn as JSON object organized by category:\n{\n  \"decision_style\": {\n    \"trait_name\": {\n      \"value\": \"trait_value\",\n      \"confidence\": 0.80,\n      \"evidence\": \"pattern evidence\"\n    }\n  },\n  \"communication_style\": { ... },\n  \"goal_orientation\": { ... }\n}\n\nRules:\n- Confidence: 0.0-0.95 (never 1.0)\n- Only include traits with evidence from multiple interactions\n- Focus on patterns, not single data points\n- Be conservative in confidence scoring\n- Only include categories with identified traits"
+}

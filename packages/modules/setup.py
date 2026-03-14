@@ -43,6 +43,7 @@ from modules.container import (
 
 # Import existing modules for registration
 from modules.scribe import Scribe
+from modules.database_manager import get_database_manager, DatabaseManager
 from modules.economics import EconomicManager
 from modules.mandates import MandateEnforcer
 from modules.router import ModelRouter
@@ -64,6 +65,15 @@ from modules.evolution_orchestrator import EvolutionOrchestrator
 from modules.evolution_pipeline import EvolutionPipeline
 from modules.prompt_manager import get_prompt_manager
 from modules.prompt_optimizer import PromptOptimizer
+
+# Import new Phase 2-3 modules
+from modules.master_model import MasterModelManager
+from modules.income_seeker import IncomeSeeker
+
+# Import new Phase 5 modules (Automation & Intelligence)
+from modules.trait_extractor import TraitExtractor, AutonomousTraitLearning
+from modules.reflection_analyzer import ReflectionAnalyzer
+from modules.profitability_reporter import ProfitabilityReporter
 
 
 class SystemBuilder:
@@ -106,6 +116,9 @@ class SystemBuilder:
             # Ensure config directories exist
             self._config.ensure_directories()
             
+            # Register configuration in container for services that expect it
+            self._container.register_instance('SystemConfig', self._config)
+
             # Register EventBus first as it's needed by many modules
             self._container.register_instance('EventBus', self._event_bus)
             
@@ -137,9 +150,14 @@ class SystemBuilder:
         """Register core services in the container."""
         config = self._config
         
-        # Scribe (core logging) - singleton
+        # Database manager - singleton
+        self._container.register_factory('DatabaseManager',
+            lambda c: get_database_manager(config.database.path),
+            singleton=True)
+
+        # Scribe (core logging) - singleton (uses DatabaseManager)
         self._container.register_factory('Scribe', 
-            lambda c: Scribe(config.database.path), 
+            lambda c: Scribe(db_manager=c.get('DatabaseManager')), 
             singleton=True)
 
         # PromptManager - singleton
@@ -155,9 +173,15 @@ class SystemBuilder:
             ),
             singleton=True)
             
-        # Mandate Enforcer
+        # Mandate Enforcer (Enhanced in Phase 3)
         self._container.register_factory('MandateEnforcer',
-            lambda c: MandateEnforcer(c.get('Scribe')),
+            lambda c: MandateEnforcer(
+                c.get('Scribe'),
+                prompt_manager=c.get('PromptManager'),
+                router=c.get('ModelRouter'),
+                database_manager=c.get('DatabaseManager'),
+                event_bus=c.get('EventBus')
+            ),
             singleton=True)
             
         # Model Router
@@ -169,12 +193,13 @@ class SystemBuilder:
             ),
             singleton=True)
             
-        # Dialogue Manager
+        # Dialogue Manager (Enhanced in Phase 3)
         self._container.register_factory('DialogueManager',
             lambda c: DialogueManager(
                 c.get('Scribe'),
                 c.get('ModelRouter'),
-                prompt_manager=c.get('PromptManager')
+                prompt_manager=c.get('PromptManager'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -182,9 +207,32 @@ class SystemBuilder:
         self._container.register_factory('Forge',
             lambda c: Forge(c.get('ModelRouter'), c.get('Scribe'), event_bus=c.get('EventBus'), prompt_manager=c.get('PromptManager')),
             singleton=True)
+
+        # Master Model Manager (Phase 2.1)
+        self._container.register_factory('MasterModelManager',
+            lambda c: MasterModelManager(
+                c.get('Scribe'),
+                c.get('DatabaseManager'),
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
     
     def _register_autonomous_services(self):
         """Register autonomous module services."""
+        # Income Seeker (Phase 2.2)
+        self._container.register_factory('IncomeSeeker',
+            lambda c: IncomeSeeker(
+                c.get('EconomicManager'),
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                c.get('Scribe'),
+                c.get('GoalSystem'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
         # Scheduler
         self._container.register_factory('AutonomousScheduler',
              lambda c: AutonomousScheduler(
@@ -204,7 +252,8 @@ class SystemBuilder:
                 c.get('Scribe'),
                 c.get('ModelRouter'),
                 c.get('EconomicManager'),
-                prompt_manager=c.get('PromptManager')
+                prompt_manager=c.get('PromptManager'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -212,7 +261,8 @@ class SystemBuilder:
         self._container.register_factory('HierarchyManager',
             lambda c: HierarchyManager(
                 c.get('Scribe'),
-                c.get('EconomicManager')
+                c.get('EconomicManager'),
+                event_bus=c.get('EventBus')
             ),
             singleton=True)
             
@@ -312,7 +362,11 @@ class SystemBuilder:
         self._container.register_factory('StrategyOptimizer',
             lambda c: StrategyOptimizer(
                 c.get('Scribe'),
-                event_bus=c.get('EventBus')
+                router=c.get('ModelRouter'),
+                evolution=c.get('EvolutionManager'),
+                metacognition=c.get('MetaCognition'),
+                event_bus=c.get('EventBus'),
+                prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
             
@@ -333,6 +387,48 @@ class SystemBuilder:
                 prompt_manager=c.get('PromptManager')
             ),
             singleton=True)
+
+        # Phase 5: Automation & Intelligence modules
+        # Trait Extractor
+        self._container.register_factory('TraitExtractor',
+            lambda c: TraitExtractor(
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
+        # Autonomous Trait Learning
+        self._container.register_factory('AutonomousTraitLearning',
+            lambda c: AutonomousTraitLearning(
+                c.get('MasterModelManager'),
+                c.get('TraitExtractor'),
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
+        # Reflection Analyzer
+        self._container.register_factory('ReflectionAnalyzer',
+            lambda c: ReflectionAnalyzer(
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
+        # Profitability Reporter
+        self._container.register_factory('ProfitabilityReporter',
+            lambda c: ProfitabilityReporter(
+                c.get('EconomicManager'),
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                c.get('Scribe'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
             
     def _initialize_modules(self):
         """Initialize all modules from container."""
@@ -342,7 +438,10 @@ class SystemBuilder:
             'HierarchyManager', 'SelfDiagnosis', 'SelfModification',
             'EvolutionManager', 'EvolutionPipeline', 'MetaCognition',
             'CapabilityDiscovery', 'IntentPredictor', 'EnvironmentExplorer',
-            'StrategyOptimizer', 'EvolutionOrchestrator', 'PromptManager'
+            'StrategyOptimizer', 'EvolutionOrchestrator', 'PromptManager',
+            # Phase 5 modules
+            'MasterModelManager', 'IncomeSeeker', 'TraitExtractor',
+            'AutonomousTraitLearning', 'ReflectionAnalyzer', 'ProfitabilityReporter'
         ]
         
         for name in service_names:

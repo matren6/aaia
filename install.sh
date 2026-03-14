@@ -62,7 +62,7 @@ enable_flakes() {
     log_info "Checking Nix flakes configuration..."
     
     # Check if flakes are already enabled
-    if nix --experimental-features="nix-command flakes" config show | grep -q "experimental-features.*flakes"; then
+    if nix --extra-experimental-features nix-command config show | grep -q "experimental-features.*flakes"; then
         log_success "Nix flakes already enabled"
         return 0
     fi

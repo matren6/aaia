@@ -1,0 +1,8 @@
+{
+  "name": "analyze_interactions",
+  "description": "Analyze recent master interactions to identify patterns",
+  "model": "llama3.2:3b",
+  "temperature": 0.3,
+  "variables": ["interactions"],
+  "prompt": "Analyze the following recent master interactions and identify patterns in:\n\n1. Communication style preferences (formal vs casual, verbosity, emoji usage)\n2. Decision-making patterns (quick vs deliberate, risk tolerance)\n3. Emotional tone and triggers\n4. Time-of-day patterns and energy levels\n5. Urgency indicators and deadline awareness\n6. Feedback preferences and receptivity\n7. Technical vs non-technical language preference\n\nInteractions:\n{{interactions}}\n\nProvide analysis in the following JSON format:\n{\n  \"communication_preferences\": {\n    \"formality\": \"formal/casual/mixed\",\n    \"verbosity\": \"brief/detailed/mixed\",\n    \"emoji_usage\": 0.0-1.0,\n    \"technical_level\": \"basic/intermediate/advanced\"\n  },\n  \"decision_making\": {\n    \"style\": \"quick/deliberate/mixed\",\n    \"risk_tolerance\": \"low/medium/high\",\n    \"information_needs\": \"minimal/moderate/thorough\"\n  },\n  \"patterns\": [\"pattern1\", \"pattern2\", ...],\n  \"triggers_observed\": [\"trigger1\", \"trigger2\", ...],\n  \"recommendations\": [\"recommendation1\", ...]\n}"
+}

@@ -41,6 +41,11 @@ class SchedulerConfig:
     reflection_interval: int = 86400
     evolution_check_interval: int = 7200
     enabled: bool = True
+    # Additional scheduler settings
+    max_concurrent_tasks: int = 3
+    task_timeout: int = 300
+    retry_failed_tasks: bool = True
+    max_task_retries: int = 2
     
     def __post_init__(self):
         """Validate configuration values."""
@@ -160,6 +165,11 @@ class EvolutionConfig:
     backup_before_modify: bool = True
     max_code_lines: int = 500
     require_tests: bool = False
+    # Additional evolution settings
+    validation_timeout: int = 30
+    rollback_on_error: bool = True
+    max_modifications_per_cycle: int = 5
+    modification_cooldown: int = 300
     
     def __post_init__(self):
         """Validate configuration values."""
@@ -175,6 +185,11 @@ class ToolsConfig:
     tools_dir: str = "tools"
     backup_dir: str = "backups"
     auto_discover: bool = True
+    # Extra tool-related configuration
+    max_tool_size_kb: int = 500
+    allow_network_tools: bool = False
+    sandbox_mode: bool = True
+    execution_timeout: int = 30
 
 
 @dataclass
@@ -187,6 +202,31 @@ class LoggingConfig:
 
 
 @dataclass
+class NetworkConfig:
+    """Network configuration."""
+    enabled: bool = True
+    timeout: int = 30
+    max_retries: int = 3
+    retry_delay: int = 1
+    verify_ssl: bool = True
+    proxy_url: Optional[str] = None
+    user_agent: str = "AAIA/1.0"
+
+
+@dataclass
+class MonitoringConfig:
+    """Monitoring and observability configuration."""
+    enabled: bool = True
+    log_level: str = "INFO"
+    log_to_file: bool = True
+    log_file_path: str = "logs/aaia.log"
+    log_rotation_mb: int = 10
+    log_retention_days: int = 7
+    metrics_enabled: bool = True
+    metrics_interval: int = 60
+
+
+@dataclass
 class SystemConfig:
     """Main system configuration combining all sub-configs."""
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
@@ -196,6 +236,8 @@ class SystemConfig:
     evolution: EvolutionConfig = field(default_factory=EvolutionConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    network: NetworkConfig = field(default_factory=NetworkConfig)
+    monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     
     @classmethod
     def from_env(cls):
@@ -397,5 +439,7 @@ def validate_system_config(config: SystemConfig) -> bool:
         for error in errors:
             print(f"  - {error}")
         return False
+    # All checks passed
+    return True
     
     return True

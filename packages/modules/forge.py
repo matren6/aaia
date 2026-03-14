@@ -59,7 +59,7 @@ from modules.container import DependencyError
 class Forge:
     """Dynamic tool creation system for extending AI capabilities."""
 
-    def __init__(self, router, scribe, tools_dir: str = None, event_bus=None, prompt_manager=None):
+    def __init__(self, router, scribe, tools_dir: str = None, event_bus=None, prompt_manager=None, tools_config=None):
         """
         Initialize the Forge with router and scribe dependencies.
         
@@ -74,17 +74,35 @@ class Forge:
         self.scribe = scribe
         self.event_bus = event_bus
         self.prompt_manager = prompt_manager
-        
-        # Load tools directory from config if not provided
-        if tools_dir is None:
+
+        # Load tools configuration (prefer explicit tools_config, then global config)
+        if tools_config is not None:
+            self.config = tools_config
+        else:
             try:
                 from modules.settings import get_config
-                tools_dir = get_config().tools.tools_dir
+                self.config = get_config().tools
             except Exception:
-                tools_dir = "tools"
-        
-        self.tools_dir = Path(tools_dir)
-        self.tools_dir.mkdir(exist_ok=True)
+                # Fallback to minimal config shape
+                class _Fallback:
+                    tools_dir = tools_dir or "tools"
+                    backup_dir = "backups"
+                    auto_discover = True
+                    max_tool_size_kb = 500
+                    sandbox_mode = True
+                    execution_timeout = 30
+                self.config = _Fallback()
+
+        # Ensure tools directory exists
+        self.tools_dir = Path(self.config.tools_dir)
+        self.backup_dir = Path(self.config.backup_dir)
+        self.execution_timeout = getattr(self.config, 'execution_timeout', 30)
+        self.max_tool_size = getattr(self.config, 'max_tool_size_kb', 500) * 1024
+        self.sandbox_mode = getattr(self.config, 'sandbox_mode', True)
+
+        self.tools_dir.mkdir(parents=True, exist_ok=True)
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+
         self._registry: Dict[str, Dict[str, Any]] = {}
         self._load_existing_tools()
 
@@ -392,11 +410,30 @@ if __name__ == "__main__":
         
         # Dynamic import and execution
         import importlib.util
+        import signal
+
         spec = importlib.util.spec_from_file_location(name, tool_path)
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        
-        return module.execute(**kwargs)
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError(f"Tool execution exceeded {self.execution_timeout}s")
+
+        # Set alarm if sandboxed and platform supports it
+        use_alarm = getattr(self, 'sandbox_mode', True) and hasattr(signal, 'SIGALRM')
+        try:
+            if use_alarm:
+                signal.signal(signal.SIGALRM, _timeout_handler)
+                signal.alarm(int(self.execution_timeout))
+
+            spec.loader.exec_module(module)
+            result = module.execute(**kwargs)
+            return result
+        finally:
+            if use_alarm:
+                try:
+                    signal.alarm(0)
+                except Exception:
+                    pass
 
     def validate_tool_code(self, code: str) -> Dict[str, Any]:
         """

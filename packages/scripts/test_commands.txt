@@ -1,0 +1,5 @@
+# Test command file for batch mode
+status
+tools
+# Empty lines and comments are ignored
+

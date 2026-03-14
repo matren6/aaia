@@ -30,7 +30,15 @@ class NixAwareSelfModification:
         self.router = router
         self.forge = forge
         self.event_bus = event_bus
-        self.prompt_manager = prompt_manager
+        # Ensure PromptManager is available (prefer DI, fallback to singleton)
+        if prompt_manager is None:
+            try:
+                from modules.prompt_manager import get_prompt_manager
+                self.prompt_manager = get_prompt_manager()
+            except Exception:
+                self.prompt_manager = None
+        else:
+            self.prompt_manager = prompt_manager
         self.backup_dir = Path("backups")
         self.backup_dir.mkdir(exist_ok=True)
         

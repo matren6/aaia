@@ -53,9 +53,15 @@ from collections import defaultdict
 class StrategyOptimizer:
     """Optimize evolution strategies based on past performance"""
 
-    def __init__(self, scribe, event_bus=None):
+    def __init__(self, scribe, router=None, evolution=None, metacognition=None, event_bus=None, prompt_manager=None):
         self.scribe = scribe
+        self.router = router
+        self.evolution = evolution
+        self.metacognition = metacognition
         self.event_bus = event_bus
+        # PromptManager should be provided by DI; accept optional param for backwards compatibility
+        from modules.prompt_manager import get_prompt_manager
+        self.prompt_manager = prompt_manager or get_prompt_manager()
         self.strategy_history = self.load_strategy_history()
 
     def load_strategy_history(self) -> List[Dict]:
@@ -156,43 +162,195 @@ class StrategyOptimizer:
         })
 
     def optimize_evolution_strategy(self, recent_results: List[Dict] = None) -> Dict:
-        """Optimize evolution strategy based on what worked/didn't"""
+        """Optimize evolution strategy based on historical data using centralized prompts"""
+
+        # Gather recent history if not provided
         if recent_results is None:
-            # Use last 30 days of history
             cutoff = datetime.now() - timedelta(days=30)
             recent_results = [
                 r for r in self.strategy_history
                 if datetime.fromisoformat(r["timestamp"]) > cutoff
             ]
 
-        successful_strategies = []
-        failed_strategies = []
+        # Prepare data for prompt
+        history_text = self._format_history(recent_results)
+        metrics = self.get_strategy_performance_summary()
+        metrics_text = self._format_metrics(metrics)
 
-        for result in recent_results:
-            if result.get("success_rate", 0) > 0.7:  # 70% success threshold
-                successful_strategies.append(result)
-            else:
-                failed_strategies.append(result)
 
-        # Identify patterns in success vs failure
-        success_patterns = self.identify_patterns(successful_strategies)
-        failure_patterns = self.identify_patterns(failed_strategies)
+        # Use PromptManager to get a formatted LLM prompt
+        try:
+            current_state = self._gather_current_state()
+            capabilities = self._get_capabilities_summary()
+            prompt = self.prompt_manager.get_prompt(
+                'strategy_optimization',
+                history=history_text,
+                current_state=current_state,
+                capabilities=capabilities
+            )
+        except Exception:
+            # Fallback to local analysis if prompt missing
+            return {
+                "adopt": [],
+                "avoid": [],
+                "experiment_with": self.generate_experiments({}, {}),
+                "recommended_approach": self.generate_recommended_approach({}, {})
+            }
 
-        # Generate optimized strategy
-        optimized_strategy = {
-            "adopt": success_patterns.get("common_elements", []),
-            "avoid": failure_patterns.get("common_elements", []),
-            "experiment_with": self.generate_experiments(success_patterns, failure_patterns),
-            "recommended_approach": self.generate_recommended_approach(success_patterns, failure_patterns)
+        # Call model for analysis
+        model_name, _ = (self.router.route_request("analysis", "high") if self.router else ("default", {}))
+        response = self.router.call_model(model_name, prompt["prompt"]) if self.router else ""
+
+        # Parse response into structured data
+        optimization = self._parse_strategy_response(response)
+
+        # Log strategy optimization
+        try:
+            self.scribe.log_action(
+                "Strategy optimization",
+                f"Generated {len(optimization.get('adopt', []))} adopt strategies, {len(optimization.get('avoid', []))} avoid patterns",
+                "optimized"
+            )
+        except Exception:
+            pass
+
+        return optimization
+
+    def _format_history(self, history: List[Dict]) -> str:
+        """Format history for prompt"""
+        lines = []
+        for entry in history[-10:]:
+            ts = entry.get('timestamp', '')
+            action = entry.get('strategy_name', '')
+            outcome = ','.join(entry.get('outcomes', [])) if entry.get('outcomes') else entry.get('lessons_learned', '')
+            lines.append(f"- {ts}: {action} -> {outcome}")
+        return "\n".join(lines)
+
+    def _format_metrics(self, metrics: Dict) -> str:
+        """Format metrics for prompt"""
+        lines = []
+        for key, value in metrics.items():
+            lines.append(f"- {key}: {value}")
+        return "\n".join(lines)
+
+    def _parse_strategy_response(self, response: str) -> Dict:
+        """Parse LLM response into structured strategy"""
+        strategy = {
+            'adopt': [],
+            'avoid': [],
+            'experiment_with': [],
+            'recommended_approach': ''
         }
 
-        self.scribe.log_action(
-            "Strategy optimization",
-            f"Analyzed {len(recent_results)} past strategies",
-            "optimization_completed"
-        )
+        current_section = None
+        for line in (response or "").split('\n'):
+            line = line.strip()
+            if not line:
+                continue
 
-        return optimized_strategy
+            # Detect sections
+            if 'ADOPT' in line.upper():
+                current_section = 'adopt'
+                continue
+            elif 'AVOID' in line.upper():
+                current_section = 'avoid'
+                continue
+            elif 'EXPERIMENT' in line.upper():
+                current_section = 'experiment_with'
+                continue
+            elif 'RECOMMENDED' in line.upper():
+                current_section = 'recommended'
+                continue
+            elif current_section and (line[0].isdigit() or line.startswith('-')):
+                # Parse item
+                if current_section == 'recommended':
+                    strategy['recommended_approach'] += line + ' '
+                else:
+                    strategy[current_section].append(line)
+
+        return strategy
+
+    def identify_bottlenecks(self) -> List[Dict]:
+        """Identify strategic bottlenecks in evolution process"""
+        current_state = self._gather_current_state()
+        recent_changes = self._gather_recent_changes()
+
+        try:
+            prompt = self.prompt_manager.get_prompt(
+                'identify_bottlenecks',
+                current_state=current_state,
+                recent_changes=recent_changes
+            )
+        except Exception:
+            return []
+
+        model_name, _ = (self.router.route_request("analysis", "high") if self.router else ("default", {}))
+        response = self.router.call_model(model_name, prompt["prompt"]) if self.router else ""
+
+        bottlenecks = self._parse_bottlenecks(response)
+        return bottlenecks
+
+    def _get_capabilities_summary(self) -> str:
+        """Return a short summary of system capabilities for prompts"""
+        caps = []
+        try:
+            if hasattr(self, 'metacognition') and self.metacognition:
+                metrics = getattr(self.metacognition, 'collect_current_metrics', lambda: {})()
+                caps.append(f"- Metrics available: {len(metrics)}")
+        except Exception:
+            pass
+
+        try:
+            caps.append(f"- Strategy history length: {len(self.strategy_history)}")
+        except Exception:
+            caps.append("- Strategy history length: unknown")
+
+        return "\n".join(caps)
+
+    def _gather_current_state(self) -> str:
+        """Gather current system state"""
+        state = []
+        try:
+            state.append(f"Current tier: {getattr(self, '_get_current_tier', lambda: 'unknown')()}")
+        except Exception:
+            state.append("Current tier: unknown")
+        try:
+            state.append(f"Active goals: {getattr(self, '_get_active_goals_count', lambda: 0)()}"
+            )
+        except Exception:
+            state.append("Active goals: 0")
+        try:
+            state.append(f"System health: {getattr(self, '_get_health_score', lambda: 'unknown')()}"
+            )
+        except Exception:
+            state.append("System health: unknown")
+        return "\n".join(state)
+
+    def _gather_recent_changes(self) -> str:
+        """Gather recent system changes"""
+        try:
+            changes = []
+            # Use scribe if available
+            if hasattr(self.scribe, 'get_recent_actions'):
+                recent = self.scribe.get_recent_actions(hours=48)
+                changes = [f"- {c.get('action')}: {c.get('outcome')}" for c in recent[:10]]
+            return "\n".join(changes)
+        except Exception:
+            return ""
+
+    def _parse_bottlenecks(self, response: str) -> List[Dict]:
+        """Parse bottleneck response"""
+        bottlenecks = []
+        for line in (response or "").split('\n'):
+            if line.strip() and (line[0].isdigit() or line.startswith('-')):
+                parts = [p.strip() for p in line.split('-', 2)]
+                if len(parts) >= 3:
+                    bottlenecks.append({
+                        'bottleneck': parts[0],
+                        'impact': parts[1],
+                        'solution': parts[2]
+                    })
+        return bottlenecks
 
     def identify_patterns(self, strategies: List[Dict]) -> Dict:
         """Identify common patterns in strategies"""

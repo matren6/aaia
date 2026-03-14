@@ -49,14 +49,29 @@ OUTPUTS: Current tier, progress status, tier advancement decisions
 import sqlite3
 from typing import Dict, List, Optional
 from datetime import datetime
+from modules.bus import Event, EventType
+
+
 
 
 class HierarchyManager:
     """Manages hierarchy of needs progression for autonomous development."""
 
-    def __init__(self, scribe, economics):
+    def __init__(self, scribe, economics, event_bus=None):
         self.scribe = scribe
         self.economics = economics
+        self.event_bus = event_bus
+
+        # Subscribe to relevant events if bus is available
+        if self.event_bus:
+            try:
+                self.event_bus.subscribe(EventType.GOAL_COMPLETED, self._on_goal_completed)
+                self.event_bus.subscribe(EventType.TOOL_CREATED, self._on_tool_created)
+                # Subscribe to capability discovered and reflection completed events
+                self.event_bus.subscribe(EventType.CAPABILITY_DISCOVERED, self._on_capability_discovered)
+                self.event_bus.subscribe(EventType.REFLECTION_COMPLETED, self._on_capability_discovered)
+            except Exception:
+                pass
 
     def update_focus(self):
         """Update current focus tier based on needs met"""
@@ -123,6 +138,51 @@ class HierarchyManager:
             conn.commit()
         
         conn.close()
+
+    def update_tier_progress(self, tier: int, delta: float):
+        """Increment progress for a tier by delta (0-1 scale)."""
+        try:
+            conn = sqlite3.connect(self.scribe.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT progress FROM hierarchy_of_needs WHERE tier = ?", (tier,))
+            row = cursor.fetchone()
+            current = float(row[0]) if row and row[0] is not None else 0.0
+            new = max(0.0, min(1.0, current + delta))
+            cursor.execute("UPDATE hierarchy_of_needs SET progress = ? WHERE tier = ?", (new, tier))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    def _on_goal_completed(self, event: Event):
+        """Handle goal completion events"""
+        tier = event.data.get('tier') if event and getattr(event, 'data', None) else None
+        if tier:
+            # Add progress when goals are completed
+            self.update_tier_progress(tier, 0.1)
+            try:
+                self.scribe.log_action(
+                    f"Tier {tier} progress updated due to goal completion",
+                    "Event-driven tier progress",
+                    "tier_progress"
+                )
+            except Exception:
+                pass
+
+    def _on_tool_created(self, event: Event):
+        """Handle tool creation events"""
+        # Tool creation contributes to growth (tier 2)
+        try:
+            self.update_tier_progress(2, 0.05)
+        except Exception:
+            pass
+
+    def _on_capability_discovered(self, event: Event):
+        """Handle capability discovery events"""
+        try:
+            self.update_tier_progress(3, 0.03)
+        except Exception:
+            pass
         
         return {"previous_tier": current_tier, "new_tier": new_tier}
 

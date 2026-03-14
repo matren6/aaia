@@ -1,0 +1,8 @@
+{
+  "name": "identify_opportunities",
+  "description": "Identify income generation opportunities",
+  "model": "llama3.2:3b",
+  "temperature": 0.7,
+  "variables": ["capabilities", "state"],
+  "prompt": "Based on these current capabilities and system state, identify potential income-generating opportunities:\n\nCapabilities:\n{{capabilities}}\n\nCurrent State:\n{{state}}\n\nIdentify up to 5 opportunities for generating income through:\n1. Automation services\n2. Data analysis\n3. System optimization\n4. Scheduled task execution\n5. Consulting or knowledge work\n\nFor each opportunity, provide:\n- Type (automation, analysis, optimization, consulting, other)\n- Description of the service/opportunity\n- Estimated value (in credits or currency)\n- Effort estimate (low/medium/high)\n- Market demand (low/medium/high)\n- Implementation complexity (low/medium/high)\n\nReturn as JSON array:\n[\n  {\n    \"type\": \"opportunity_type\",\n    \"description\": \"what can be offered\",\n    \"estimated_value\": 100,\n    \"effort\": \"low|medium|high\",\n    \"demand\": \"low|medium|high\",\n    \"complexity\": \"low|medium|high\"\n  },\n  ...\n]\n\nFocus on realistic, achievable opportunities given the current capabilities."
+}

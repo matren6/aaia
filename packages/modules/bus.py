@@ -17,40 +17,64 @@ class EventType(Enum):
     SYSTEM_STARTUP = "system_startup"
     SYSTEM_SHUTDOWN = "system_shutdown"
     SYSTEM_HEALTH_CHECK = "system_health_check"
-    
+
     # Economic events
     ECONOMIC_TRANSACTION = "economic_transaction"
     BALANCE_LOW = "balance_low"
     INCOME_GENERATED = "income_generated"
-    
+    INCOME_RECORDED = "income_recorded"
+    INCOME_OPPORTUNITY_IDENTIFIED = "income_opportunity_identified"
+    PROFITABILITY_ALERT = "profitability_alert"
+
     # Evolution events
     EVOLUTION_STARTED = "evolution_started"
     EVOLUTION_COMPLETED = "evolution_completed"
     EVOLUTION_FAILED = "evolution_failed"
-    
+
     # Tool events
     TOOL_CREATED = "tool_created"
     TOOL_LOADED = "tool_loaded"
     TOOL_ERROR = "tool_error"
-    
+
     # Goal events
     GOAL_CREATED = "goal_created"
     GOAL_COMPLETED = "goal_completed"
     GOAL_FAILED = "goal_failed"
-    
+
     # Metacognition events
     REFLECTION_STARTED = "reflection_started"
     REFLECTION_COMPLETED = "reflection_completed"
-    
+
     # Diagnosis events
     DIAGNOSIS_COMPLETED = "diagnosis_completed"
     DIAGNOSIS_ACTION_REQUIRED = "diagnosis_action_required"
 
+    # Discovery events
+    CAPABILITY_DISCOVERED = "capability_discovered"
+
     # LLM Provider events
     MODEL_INFERENCE = "model_inference"
+    # LLM lifecycle events
+    LLM_REQUEST = "llm_request"
+    LLM_RESPONSE = "llm_response"
+    LLM_ERROR = "llm_error"
+    LLM_FALLBACK = "llm_fallback"
     PROVIDER_AVAILABLE = "provider_available"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     PROVIDER_FALLBACK = "provider_fallback"
+
+    # Master model events
+    MASTER_INTERACTION_LOGGED = "master_interaction_logged"
+    MASTER_TRAIT_UPDATED = "master_trait_updated"
+    MASTER_MODEL_REFLECTED = "master_model_reflected"
+
+    # Mandate and safety events
+    MANDATE_OVERRIDE = "mandate_override"
+    CATASTROPHIC_RISK_DETECTED = "catastrophic_risk_detected"
+    DIALOGUE_SKIPPED = "dialogue_skipped"
+
+    # Improvement events
+    IMPROVEMENT_IDENTIFIED = "improvement_identified"
 
 
 @dataclass

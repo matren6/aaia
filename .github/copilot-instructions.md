@@ -60,6 +60,74 @@ cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia
 nix build .#aaia && ./result/bin/aaia
 ```
 
+## CLI Testing (Batch Mode & Automation)
+
+**Non-Interactive Command Execution:**
+```bash
+# Execute single command and exit
+PYTHONPATH=packages python3 packages/main.py -c "status" -e
+
+# Execute multiple commands
+PYTHONPATH=packages python3 packages/main.py -c "status" -c "tools" -c "config" -e
+
+# Execute commands from file
+PYTHONPATH=packages python3 packages/main.py --cmd-file scripts/commands.txt --autoexit
+
+# With per-command timeout (for AI agent testing)
+PYTHONPATH=packages python3 packages/main.py -c "status" -c "diagnose" -e -t 30
+```
+
+**Command File Format (scripts/commands.txt):**
+```
+# Lines starting with # are ignored
+status
+tools
+config
+# Empty lines are ignored
+
+goals
+```
+
+**CLI Options:**
+- `--cmd` / `-c` : Execute command (repeatable)
+- `--cmd-file FILE` : Load commands from file (one per line, # for comments)
+- `--autoexit` / `-e` : Exit immediately after executing commands
+- `--timeout` / `-t SECONDS` : Kill command if it exceeds timeout (exit code 2)
+
+**Testing Patterns:**
+
+```bash
+# Quick smoke test
+PYTHONPATH=packages python3 packages/main.py -c "status" -e -t 5
+
+# AI agent test suite
+PYTHONPATH=packages python3 packages/main.py \
+  -c "status" \
+  -c "tools" \
+  -c "diagnose" \
+  -c "goals" \
+  -e -t 60
+
+# Config validation in CI/CD
+PYTHONPATH=packages python3 packages/main.py -c "config validate" -e -t 10
+
+# Integration test (WSL)
+wsl -d Ubuntu-24.04 -e bash -lc \
+  'cd /mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia && \
+   PYTHONPATH=packages python3 packages/main.py -c "status" -e -t 5'
+```
+
+**Exit Codes:**
+- `0` : Success
+- `1` : General error
+- `2` : Timeout exceeded
+
+**Notes:**
+- Timeout is per-command (each command must complete within timeout)
+- Interactive commands (prompting for input) will be killed by timeout
+- Use batch mode for automated testing, CI/CD, and AI agent validation
+- If no commands provided, enters interactive mode
+
 ## File Structure
 
 ```
@@ -103,3 +171,4 @@ subprocess.run(['nix', 'build', '.#aaia'], check=True)
 - Make sure to only use LF as line ending to avoid issues in WSL and Nix environments.
 - ⚠️ **No systemd in WSL** - full service testing needs NixOS
 - 📍 **WSL Path**: `/mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia`
+- 🤖 **Use batch mode** for automated testing and CI/CD pipelines

@@ -1,0 +1,8 @@
+{
+  "name": "extract_traits",
+  "description": "Extract observable traits from a single interaction",
+  "model": "llama3.2:3b",
+  "temperature": 0.2,
+  "variables": ["interaction", "context"],
+  "prompt": "Extract observable traits about the master from this interaction:\n\nInteraction:\n- Input: {{interaction}}\n- Context: {{context}}\n\nAnalyze for traits in these categories:\n- Values (what matters to the master): honesty, autonomy, efficiency, safety, privacy\n- Communication Style: directness, formality, verbosity, emoji usage, technical depth\n- Goals: short-term objectives, long-term vision, priorities\n- Preferences: tools, formats, notification frequency, decision-making style\n- Constraints: time availability, budget, risk tolerance, ethical boundaries\n\nOutput as JSON array of observed traits:\n[\n  {\n    \"category\": \"values|communication_style|goals|preferences|constraints\",\n    \"name\": \"trait_name\",\n    \"value\": \"observed_value\",\n    \"evidence\": \"direct quote or paraphrase from interaction\",\n    \"confidence\": 0.3-0.8,\n    \"strength\": \"strong|moderate|weak\"\n  },\n  ...\n]\n\nOnly include traits that are clearly observable from the interaction. Be conservative with confidence scores."
+}

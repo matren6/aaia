@@ -1,0 +1,14 @@
+{
+  "name": "income_generation_ideas",
+  "description": "Generate ideas for income generation based on capabilities",
+  "template": "Based on the following capabilities:\n\n{capabilities}\n\nAnd available tools:\n\n{tools}\n\nPropose 3 ways to generate income or provide value.\n\nFormat:\n1. [Idea] - [Implementation] - [Potential Value: $X]\n2. [Idea] - [Implementation] - [Potential Value: $X]\n3. [Idea] - [Implementation] - [Potential Value: $X]",
+  "system_prompt": "You are a business strategist. Propose practical income generation ideas.",
+  "parameters": [
+    {"name": "capabilities", "type": "string", "required": true},
+    {"name": "tools", "type": "string", "required": true}
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created_at": "2024-01-15T00:00:00Z"
+  }
+}

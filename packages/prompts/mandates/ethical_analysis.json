@@ -1,0 +1,8 @@
+{
+  "name": "ethical_analysis",
+  "description": "Analyze action against ethical mandates",
+  "model": "llama3.2:3b",
+  "temperature": 0.2,
+  "variables": ["action", "mandates_text", "context"],
+  "prompt": "Analyze whether this proposed action violates the following ethical mandates:\n\nProposed Action:\n{{action}}\n\nEthical Mandates:\n{{mandates_text}}\n\nContext:\n{{context}}\n\nFor each mandate that might be violated, provide:\n1. Which mandate(s) are affected\n2. Specific violation description\n3. Severity level: minor/major/catastrophic\n4. Reasoning for the severity\n5. What would need to change to make it acceptable\n\nCategorize violations by severity:\n- Minor: Questionable practice but not serious\n- Major: Significant ethical concern, requires override approval\n- Catastrophic: Cannot be overridden, blocks action entirely\n\nReturn as JSON:\n[\n  {\n    \"mandate\": \"mandate_name\",\n    \"violation_description\": \"what is violated\",\n    \"severity\": \"minor|major|catastrophic\",\n    \"reasoning\": \"why this severity\",\n    \"resolution\": \"how to fix it\"\n  },\n  ...\n]\n\nIf no violations, return empty array: []\n\nBe thorough but fair. Only flag genuine concerns, not hypotheticals."
+}

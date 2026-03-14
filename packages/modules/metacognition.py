@@ -10,6 +10,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List
 from modules.container import DependencyError
+from modules.bus import Event, EventType
+from datetime import datetime as _dt
 
 
 class MetaCognition:
@@ -37,6 +39,65 @@ class MetaCognition:
 
         if missing:
             raise DependencyError(f"Required prompt templates missing: {', '.join(missing)}")
+
+        # Subscribe to event bus for pattern detection and metrics
+        if self.event_bus:
+            try:
+                # Listen to all events for pattern detection
+                self.event_bus.subscribe_all(self._on_any_event)
+
+                # Specific subscriptions
+                self.event_bus.subscribe(EventType.GOAL_COMPLETED, self._on_goal_completed)
+                self.event_bus.subscribe(EventType.EVOLUTION_COMPLETED, self._on_evolution_completed)
+            except Exception:
+                pass
+
+    def _on_any_event(self, event: Event):
+        """Track all events for pattern analysis"""
+        try:
+            entry = {
+                'timestamp': getattr(event, 'timestamp', datetime.now().isoformat()) if not isinstance(getattr(event, 'timestamp', None), float) else _dt.fromtimestamp(event.timestamp).isoformat(),
+                'type': getattr(event.type, 'name', str(event.type)),
+                'source': getattr(event, 'source', None),
+                'data': getattr(event, 'data', {})
+            }
+            self.thought_log.append(entry)
+            if len(self.thought_log) > 1000:
+                self.thought_log = self.thought_log[-1000:]
+        except Exception:
+            pass
+
+    def _on_goal_completed(self, event: Event):
+        """Analyze goal completion patterns and record metrics"""
+        try:
+            duration = event.data.get('duration_days', 0) if event and getattr(event, 'data', None) else 0
+            tier = event.data.get('tier') if event and getattr(event, 'data', None) else None
+            # Record metric in DB if possible
+            try:
+                self.scribe.db.execute(
+                    'INSERT INTO effectiveness_metrics (metric_name, metric_value, context) VALUES (?, ?, ?)',
+                    ('goal_completion_days', duration, f'tier_{tier}')
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    def _on_evolution_completed(self, event: Event):
+        """Analyze evolution effectiveness and store metric"""
+        try:
+            tasks = event.data.get('tasks_completed', 0) if event and getattr(event, 'data', None) else 0
+            improvements = event.data.get('improvements', []) if event and getattr(event, 'data', None) else []
+            score = len(improvements) / max(tasks, 1) if tasks else 0
+            try:
+                self.scribe.db.execute(
+                    'INSERT INTO effectiveness_metrics (metric_name, metric_value) VALUES (?, ?)',
+                    ('evolution_effectiveness', score)
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     def record_performance_snapshot(self):
         """Record a lightweight performance snapshot for trending"""

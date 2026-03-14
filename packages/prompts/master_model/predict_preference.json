@@ -1,0 +1,8 @@
+{
+  "name": "predict_preference",
+  "description": "Predict master's preference for a proposed action",
+  "model": "llama3.2:3b",
+  "temperature": 0.3,
+  "variables": ["action", "profile", "context"],
+  "prompt": "Based on the master's known profile and preferences, predict their likely response to this proposed action:\n\nProposed Action: {{action}}\n\nMaster's Profile:\n{{profile}}\n\nAdditional Context: {{context}}\n\nAnalyze:\n1. Does this action align with master's stated values and goals?\n2. What risks or concerns might the master have?\n3. How does this compare to past decisions?\n4. What modifications might make it more acceptable?\n\nProvide prediction in JSON format:\n{\n  \"likely_acceptance\": 0.0-1.0,\n  \"acceptance_level\": \"very_unlikely|unlikely|neutral|likely|very_likely\",\n  \"reasoning\": \"explanation based on profile\",\n  \"alignment_with_values\": [\"value1\", \"value2\", ...],\n  \"concerns\": [\"concern1\", \"concern2\", ...],\n  \"suggested_modifications\": [\"modification1\", ...],\n  \"confidence\": 0.5-0.95\n}"
+}

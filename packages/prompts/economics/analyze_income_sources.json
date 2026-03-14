@@ -1,0 +1,8 @@
+{
+  "name": "analyze_income_sources",
+  "description": "Analyze profitability by income source",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["income_sources"],
+  "prompt": "Analyze income sources and their profitability contribution.\n\nIncome Sources:\n{{income_sources}}\n\nAnalyze:\n1. Which sources are most profitable?\n2. Which sources are most reliable?\n3. Which sources have best growth potential?\n4. Which sources should be expanded?\n5. Which sources should be de-emphasized?\n\nReturn as JSON:\n{\n  \"source_rankings\": [\n    {\n      \"source\": \"source_name\",\n      \"total_income\": 1000,\n      \"reliability\": \"high|medium|low\",\n      \"growth_potential\": \"high|medium|low\",\n      \"recommendation\": \"expand|maintain|reduce\"\n    }\n  ],\n  \"diversification_score\": 0.8,\n  \"risks\": [\"risk1\"],\n  \"opportunities\": [\"opportunity1\"]\n}\n\nProvide clear rankings and recommendations.\nConsider both profitability and sustainability."
+}

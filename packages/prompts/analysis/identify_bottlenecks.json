@@ -1,0 +1,14 @@
+{
+  "name": "identify_bottlenecks",
+  "description": "Identify strategic bottlenecks in evolution process",
+  "template": "Current State:\n{current_state}\n\nRecent Changes:\n{recent_changes}\n\nIdentify 3-5 strategic bottlenecks limiting progress:\n\n1. [Bottleneck] - [Impact] - [Solution]\n2. [Bottleneck] - [Impact] - [Solution]\n3. [Bottleneck] - [Impact] - [Solution]",
+  "system_prompt": "You are an expert in system optimization and bottleneck analysis.",
+  "parameters": [
+    {"name": "current_state", "type": "string", "required": true},
+    {"name": "recent_changes", "type": "string", "required": true}
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created_at": "2024-01-15T00:00:00Z"
+  }
+}

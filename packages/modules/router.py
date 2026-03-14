@@ -5,6 +5,9 @@ from typing import Dict, Tuple, Optional, Any
 from datetime import datetime
 from .economics import EconomicManager
 from modules.container import DependencyError
+from modules.bus import Event, EventType
+import uuid
+import time
 
 
 class ModelRouter:
@@ -200,21 +203,20 @@ class ModelRouter:
             return
 
         try:
-            from modules.bus import Event, EventType
-
-            self.event_bus.emit(Event(
-                event_type=EventType.MODEL_INFERENCE,
+            self.event_bus.publish(Event(
+                type=EventType.MODEL_INFERENCE,
                 data={
-                    "provider": response.provider,
-                    "model": response.model,
-                    "tokens_used": response.tokens_used,
-                    "cost": response.cost,
-                    "timestamp": response.timestamp.isoformat() if hasattr(response, 'timestamp') else datetime.now().isoformat(),
+                    "provider": getattr(response, 'provider', None),
+                    "model": getattr(response, 'model', None),
+                    "tokens_used": getattr(response, 'tokens_used', None),
+                    "cost": getattr(response, 'cost', None),
+                    "timestamp": getattr(response, 'timestamp', datetime.now()).isoformat() if hasattr(getattr(response, 'timestamp', None), 'isoformat') else str(getattr(response, 'timestamp', datetime.now())),
                     "success": True
-                }
+                },
+                source='ModelRouter'
             ))
         except Exception as e:
-            print(f"Warning: Failed to emit event: {e}")
+            print(f"Warning: Failed to publish event: {e}")
 
     def _update_provider_health(self, provider_name: str, success: bool, error: str = None) -> None:
         """Update provider health status
@@ -281,19 +283,21 @@ class ModelRouter:
 
             # Log selection for transparency
             if self.event_bus:
-                from .bus import Event, EventType
-                self.event_bus.publish(Event(
-                    event_type=EventType.MODEL_INFERENCE,
-                    data={
-                        'action': 'model_selected',
-                        'provider': provider_name,
-                        'model': model_id,
-                        'task_type': task_type,
-                        'complexity': complexity,
-                        'max_cost': max_cost
-                    },
-                    source='ModelRouter'
-                ))
+                try:
+                    self.event_bus.publish(Event(
+                        type=EventType.MODEL_INFERENCE,
+                        data={
+                            'action': 'model_selected',
+                            'provider': provider_name,
+                            'model': model_id,
+                            'task_type': task_type,
+                            'complexity': complexity,
+                            'max_cost': max_cost
+                        },
+                        source='ModelRouter'
+                    ))
+                except Exception:
+                    pass
 
             return model_id
 
@@ -365,32 +369,89 @@ class ModelRouter:
         # Override model in kwargs
         kwargs['model'] = optimal_model
 
+        # Publish LLM_REQUEST event
+        request_id = str(uuid.uuid4())[:8]
+        try:
+            if self.event_bus:
+                try:
+                    self.event_bus.publish(Event(
+                        type=EventType.LLM_REQUEST,
+                        data={
+                            'model': optimal_model,
+                            'provider': provider_name,
+                            'tokens_estimated': int(len(prompt) / 4),
+                            'request_id': request_id
+                        },
+                        source='ModelRouter'
+                    ))
+                except Exception:
+                    pass
+
+        except Exception:
+            # ignore event publish errors
+            pass
+
         try:
             # Get provider instance (with automatic fallback)
             provider = self.provider_factory.get_provider(provider_name)
-
             # Generate response
+            start_ts = time.time()
             response = provider.generate(prompt, system_prompt, **kwargs)
+            duration = time.time() - start_ts
 
             # Track cost
             self._track_cost(response)
 
-            # Emit event
+            # Publish LLM_RESPONSE event
+            if self.event_bus:
+                try:
+                    self.event_bus.publish(Event(
+                        type=EventType.LLM_RESPONSE,
+                        data={
+                            'model': getattr(response, 'model', optimal_model),
+                            'provider': getattr(response, 'provider', provider_name),
+                            'tokens_used': getattr(response, 'tokens_used', None),
+                            'duration': duration,
+                            'cost': getattr(response, 'cost', None),
+                            'request_id': request_id
+                        },
+                        source='ModelRouter'
+                    ))
+                except Exception:
+                    pass
+
+            # Emit generic inference event for monitoring
             self._emit_inference_event(response)
 
             # Update provider health
             self._update_provider_health(provider_name, success=True)
 
-            return response.content
+            return getattr(response, 'content', response)
 
         except Exception as e:
             # Update provider health
             self._update_provider_health(provider_name, success=False, error=str(e))
 
+            # Publish LLM_ERROR event
+            if self.event_bus:
+                try:
+                    self.event_bus.publish(Event(
+                        type=EventType.LLM_ERROR,
+                        data={
+                            'model': optimal_model,
+                            'provider': provider_name,
+                            'error': str(e),
+                            'request_id': request_id
+                        },
+                        source='ModelRouter'
+                    ))
+                except Exception:
+                    pass
+
             # Log error
             print(f"Error during inference with {provider_name}: {e}")
 
-            # Re-raise for now
+            # Re-raise
             raise
 
     def generate(self, prompt: str, **kwargs) -> str:

@@ -1,0 +1,8 @@
+{
+  "name": "extract_traits_from_interaction",
+  "description": "Extract psychological traits from a single interaction",
+  "model": "llama3.2:3b",
+  "temperature": 0.3,
+  "variables": ["user_input", "system_response", "intent", "success", "trait_categories", "current_traits"],
+  "prompt": "Analyze this master interaction to extract psychological traits.\n\nUser Input:\n{{user_input}}\n\nSystem Response:\n{{system_response}}\n\nIntent: {{intent}}\nSuccess: {{success}}\n\nAvailable Trait Categories:\n{{trait_categories}}\n\nCurrent Master Traits:\n{{current_traits}}\n\nBased on this interaction, extract observable traits about the master's:\n1. Decision-making style\n2. Communication preferences\n3. Risk tolerance\n4. Values and priorities\n5. Learning style\n\nFor each trait, provide:\n- category: trait category\n- name: specific trait name\n- value: observed value\n- confidence: 0.0-0.95 (never 1.0)\n- evidence: what in the interaction shows this\n\nReturn as JSON array:\n[\n  {\n    \"category\": \"decision_style\",\n    \"name\": \"trait_name\",\n    \"value\": \"trait_value\",\n    \"confidence\": 0.85,\n    \"evidence\": \"evidence from interaction\"\n  }\n]\n\nOnly include traits with confidence >= 0.6.\nBe conservative - only extract traits clearly evidenced by the interaction."
+}

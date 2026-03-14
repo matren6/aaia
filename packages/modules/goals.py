@@ -43,6 +43,7 @@ OUTPUTS: Goal list, goal completion tracking, progress reports
 
 import sqlite3
 from typing import List, Dict, Optional
+from modules.bus import Event, EventType
 from modules.container import DependencyError
 from datetime import datetime
 
@@ -50,7 +51,7 @@ from datetime import datetime
 class GoalSystem:
     """Autonomous goal generation and tracking system."""
 
-    def __init__(self, scribe, router, economics, prompt_manager=None):
+    def __init__(self, scribe, router, economics, prompt_manager=None, event_bus=None):
         self.scribe = scribe
         self.router = router
         self.economics = economics
@@ -60,39 +61,18 @@ class GoalSystem:
             raise DependencyError("PromptManager is required and must be provided via the DI container to GoalSystem")
         self.active_goals = []
         self.completed_goals = []
-        self._init_database()
+        # Optional event bus for publishing events
+        self.event_bus = event_bus
+        # Schema is managed by migrations; no local initialization required
         
 
     def _init_database(self):
-        """Initialize goals database table"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS goals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                goal_text TEXT NOT NULL,
-                goal_type TEXT,
-                priority INTEGER DEFAULT 3,
-                status TEXT DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP,
-                progress INTEGER DEFAULT 0,
-                expected_benefit TEXT,
-                estimated_effort TEXT
-            )
-        """)
-        
-        conn.commit()
-        conn.close()
+        return
 
     def generate_goals(self) -> List[str]:
         """Autonomously generate goals based on current state"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
         # Analyze recent actions for patterns
-        cursor.execute("""
+        frequent_actions = self.scribe.db.query("""
             SELECT action, COUNT(*) as count 
             FROM action_log 
             WHERE timestamp > datetime('now', '-7 days')
@@ -100,14 +80,12 @@ class GoalSystem:
             ORDER BY count DESC 
             LIMIT 10
         """)
-        frequent_actions = cursor.fetchall()
-        conn.close()
         
         # Generate goals based on patterns
         goals = []
         
         if frequent_actions:
-            actions_text = "\n".join(f"- {action}: {count} times" for action, count in frequent_actions)
+            actions_text = "\n".join(f"- {row['action']}: {row['count']} times" for row in frequent_actions)
             
             # Use PromptManager to suggest goals
             try:
@@ -134,8 +112,7 @@ class GoalSystem:
 
     def _parse_and_store_goals(self, response: str):
         """Parse AI response and store goals in database"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
+        # store via scribe.database
         
         lines = response.split('\n')
         current_goal = None
@@ -158,60 +135,89 @@ class GoalSystem:
         
         # Save last goal
         if current_goal:
-            self._save_goal(cursor, current_goal, current_benefit, current_effort)
-        
-        conn.commit()
-        conn.close()
+            self._save_goal(current_goal, current_benefit, current_effort)
 
-    def _save_goal(self, cursor, goal_text: str, benefit: str, effort: str):
+    def _save_goal(self, goal_text: str, benefit: str, effort: str):
         """Save a single goal to database"""
-        cursor.execute("""
+        self.scribe.db.execute("""
             INSERT INTO goals (goal_text, goal_type, priority, status, expected_benefit, estimated_effort)
             VALUES (?, ?, ?, 'active', ?, ?)
         """, (goal_text, 'auto_generated', 3, benefit, effort))
 
+    def create_goal(self, goal_text: str, priority: int = 3, tier: Optional[int] = None, auto_generated: int = 1) -> Optional[int]:
+        """Create a new goal and publish a GOAL_CREATED event if event bus available.
+
+        Returns the new goal id or None if creation failed.
+        """
+        try:
+            self.scribe.db.execute(
+                """
+                INSERT INTO goals (goal_text, goal_type, priority, status, expected_benefit, estimated_effort, progress)
+                VALUES (?, ?, ?, 'active', ?, ?, 0)
+                """,
+                (goal_text, 'manual' if not auto_generated else 'auto_generated', priority, None, None)
+            )
+        except Exception:
+            # Some DB wrappers don't accept None for missing columns; try simpler insert
+            self.scribe.db.execute(
+                "INSERT INTO goals (goal_text, goal_type, priority, status, progress) VALUES (?, ?, ?, 'active', 0)",
+                (goal_text, 'manual' if not auto_generated else 'auto_generated', priority)
+            )
+
+        # Retrieve last inserted goal id (best-effort)
+        row = self.scribe.db.query_one("SELECT id, created_at FROM goals ORDER BY created_at DESC LIMIT 1")
+        goal_id = row['id'] if row else None
+
+        # Publish event
+        if self.event_bus and goal_id is not None:
+            try:
+                self.event_bus.publish(Event(
+                    type=EventType.GOAL_CREATED,
+                    data={
+                        'goal_id': goal_id,
+                        'goal_text': goal_text,
+                        'priority': priority,
+                        'tier': tier,
+                        'auto_generated': bool(auto_generated)
+                    },
+                    source='GoalSystem'
+                ))
+            except Exception:
+                # Don't let event failures break flow
+                pass
+
+        return goal_id
+
     def get_active_goals(self) -> List[Dict]:
         """Get all active goals"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        rows = self.scribe.db.query("""
             SELECT id, goal_text, goal_type, priority, created_at, progress, expected_benefit, estimated_effort
             FROM goals
             WHERE status = 'active'
             ORDER BY priority, created_at
         """)
-        
-        goals = []
-        
-        for row in cursor.fetchall():
-            goals.append({
-                "id": row[0],
-                "goal_text": row[1],
-                "goal_type": row[2],
-                "priority": row[3],
-                "created_at": row[4],
-                "progress": row[5],
-                "expected_benefit": row[6],
-                "estimated_effort": row[7]
-            })
-        
-        conn.close()
-        return goals
+
+        return [
+            {
+                "id": row['id'],
+                "goal_text": row['goal_text'],
+                "goal_type": row.get('goal_type'),
+                "priority": row.get('priority'),
+                "created_at": row.get('created_at'),
+                "progress": row.get('progress'),
+                "expected_benefit": row.get('expected_benefit'),
+                "estimated_effort": row.get('estimated_effort')
+            }
+            for row in rows
+        ]
 
     def complete_goal(self, goal_id: int):
         """Mark a goal as completed"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        self.scribe.db.execute("""
             UPDATE goals 
             SET status = 'completed', completed_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (goal_id,))
-        
-        conn.commit()
-        conn.close()
         
         self.scribe.log_action(
             f"Goal completed: {goal_id}",
@@ -219,48 +225,69 @@ class GoalSystem:
             "goal_completed"
         )
 
+        # Fetch goal details for event
+        try:
+            goal = self.scribe.db.query_one('SELECT * FROM goals WHERE id = ?', (goal_id,))
+        except Exception:
+            goal = None
+
+        duration_days = None
+        if goal:
+            try:
+                created = goal.get('created_at')
+                completed = goal.get('completed_at')
+                if created and completed:
+                    # created_at / completed_at expected format: 'YYYY-MM-DD HH:MM:SS'
+                    from datetime import datetime as _dt
+                    fmt = '%Y-%m-%d %H:%M:%S'
+                    try:
+                        d_created = _dt.strptime(created, fmt)
+                        d_completed = _dt.strptime(completed, fmt)
+                    except Exception:
+                        # Try ISO format fallback
+                        d_created = _dt.fromisoformat(created)
+                        d_completed = _dt.fromisoformat(completed)
+                    duration_days = (d_completed - d_created).days
+            except Exception:
+                # If parsing fails, leave duration_days as None
+                duration_days = None
+
+        # Publish GOAL_COMPLETED event
+        if self.event_bus:
+            try:
+                self.event_bus.publish(Event(
+                    type=EventType.GOAL_COMPLETED,
+                    data={
+                        'goal_id': goal_id,
+                        'goal_text': goal.get('goal_text') if goal else None,
+                        'tier': goal.get('tier') if goal else None,
+                        'duration_days': duration_days
+                    },
+                    source='GoalSystem'
+                ))
+            except Exception:
+                pass
+
     def update_progress(self, goal_id: int, progress: int):
         """Update goal progress"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("""
+        self.scribe.db.execute("""
             UPDATE goals 
             SET progress = ?
             WHERE id = ?
         """, (progress, goal_id))
-        
-        conn.commit()
-        conn.close()
 
     def delete_goal(self, goal_id: int):
         """Delete a goal"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
-        
-        conn.commit()
-        conn.close()
+        self.scribe.db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
 
     def get_goal_summary(self) -> Dict:
         """Get summary of all goals"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM goals WHERE status = 'active'")
-        active_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM goals WHERE status = 'completed'")
-        completed_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM goals WHERE goal_type = 'auto_generated'")
-        auto_generated = cursor.fetchone()[0]
-        
-        conn.close()
-        
+        active = self.scribe.db.query_one("SELECT COUNT(*) as count FROM goals WHERE status = 'active'")
+        completed = self.scribe.db.query_one("SELECT COUNT(*) as count FROM goals WHERE status = 'completed'")
+        auto = self.scribe.db.query_one("SELECT COUNT(*) as count FROM goals WHERE goal_type = 'auto_generated'")
+
         return {
-            "active": active_count,
-            "completed": completed_count,
-            "auto_generated": auto_generated
+            "active": active['count'] if active else 0,
+            "completed": completed['count'] if completed else 0,
+            "auto_generated": auto['count'] if auto else 0
         }

@@ -1,0 +1,8 @@
+{
+  "name": "optimize_costs",
+  "description": "Identify cost optimization opportunities",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["total_costs", "focus_on"],
+  "prompt": "Identify cost optimization opportunities. Focus on: {{focus_on}}\n\nTotal Costs: {{total_costs}}\n\nIdentify:\n1. Where money is being spent most?\n2. Where are inefficiencies?\n3. What can be eliminated?\n4. What can be automated?\n5. What are best-practice benchmarks?\n\nFor each optimization:\n- What is the opportunity?\n- How much could be saved?\n- What's the implementation effort?\n- What's the timeline?\n- What are the risks?\n\nReturn as JSON:\n[\n  {\n    \"category\": \"cost category\",\n    \"current_cost\": 1000,\n    \"opportunity\": \"optimization opportunity\",\n    \"potential_savings\": 200,\n    \"savings_percentage\": 20,\n    \"implementation_effort\": \"low|medium|high\",\n    \"timeline\": \"immediate|weeks|months\",\n    \"risks\": [\"risk1\"],\n    \"priority\": \"high|medium|low\"\n  }\n]\n\nBe specific and realistic.\nFocus on highest-impact opportunities.\nConsider implementation feasibility."
+}

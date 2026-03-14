@@ -1,0 +1,8 @@
+{
+  "name": "analyze_profitability",
+  "description": "Analyze profitability with AI insights",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["current_period", "previous_period", "days"],
+  "prompt": "Analyze profitability for the {{days}}-day period with comparison to previous period.\n\nCurrent Period:\n{{current_period}}\n\nPrevious Period:\n{{previous_period}}\n\nProvide analysis of:\n1. Profitability status (profitable or not)\n2. Trends compared to previous period\n3. Key drivers of profitability\n4. Areas of concern\n5. Actionable recommendations\n\nReturn as JSON:\n{\n  \"is_profitable\": true|false,\n  \"trend\": \"improving|stable|declining\",\n  \"key_findings\": [\"finding1\"],\n  \"concerns\": [\"concern1\"],\n  \"recommendations\": [\"recommendation1\"],\n  \"priority_actions\": [\"action1\"]\n}\n\nBe clear and actionable.\nFocus on what matters most.\nProvide specific, implementable recommendations."
+}

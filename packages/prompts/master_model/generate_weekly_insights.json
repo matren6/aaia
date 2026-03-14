@@ -1,0 +1,8 @@
+{
+  "name": "generate_weekly_insights",
+  "description": "Generate weekly insights from master model and interactions",
+  "model": "llama3.2:3b",
+  "temperature": 0.5,
+  "variables": ["master_profile", "interactions", "interaction_count"],
+  "prompt": "Generate weekly insights about the master based on their profile and recent interactions.\n\nMaster Profile:\n{{master_profile}}\n\nRecent Interactions (last {{interaction_count}}):\n{{interactions}}\n\nAnalyze and provide:\n\n1. **Key Insights**: 3-5 most important observations about the master\n2. **Focus Areas**: What the master seems to be focusing on\n3. **Strengths Observed**: Positive traits/behaviors evident\n4. **Patterns Emerging**: New or evolving patterns\n5. **Recommendations**: How the system should adapt\n\nReturn as JSON:\n{\n  \"week_of\": \"ISO date\",\n  \"key_insights\": [\n    \"insight 1\",\n    \"insight 2\"\n  ],\n  \"focus_areas\": [\"area1\", \"area2\"],\n  \"strengths_observed\": [\"strength1\"],\n  \"emerging_patterns\": [\"pattern1\"],\n  \"recommendations\": [\"recommendation1\"],\n  \"summary\": \"brief paragraph summary\"\n}\n\nBe insightful but grounded in evidence.\nFocus on actionable observations."
+}

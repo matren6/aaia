@@ -1,0 +1,8 @@
+{
+  "name": "weekly_reflection",
+  "description": "Weekly reflection on master psychology model",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["interactions", "profile"],
+  "prompt": "You are reflecting on your understanding of the master. Review the past week's interactions and current profile, then identify:\n\n1. Changes in observed traits vs current model\n2. New insights about the master's values, goals, or constraints\n3. Confidence adjustments needed\n4. Patterns you hadn't noticed before\n5. Possible misunderstandings to clarify\n\nRecent Interactions (past 7 days):\n{{interactions}}\n\nCurrent Profile:\n{{profile}}\n\nProvide your reflection as a JSON array of trait updates:\n[\n  {\n    \"category\": \"values|communication_style|goals|preferences|constraints\",\n    \"name\": \"trait_name\",\n    \"value\": \"new_value\",\n    \"evidence\": \"supporting evidence from interactions\",\n    \"confidence\": 0.5-0.95,\n    \"reason\": \"why this trait is being updated\"\n  },\n  ...\n]\n\nIf no updates needed, return empty array: []"
+}

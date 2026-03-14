@@ -1,0 +1,8 @@
+{
+  "name": "generate_action_plan",
+  "description": "Generate action plan for improving profitability",
+  "model": "llama3.2:3b",
+  "temperature": 0.5,
+  "variables": ["current_state", "analysis", "recommendations"],
+  "prompt": "Generate a prioritized action plan for improving profitability.\n\nCurrent State:\n{{current_state}}\n\nAnalysis:\n{{analysis}}\n\nRecommendations:\n{{recommendations}}\n\nCreate an action plan with:\n1. Strategic priorities (what matters most)\n2. Quick wins (can be done immediately)\n3. Medium-term initiatives (weeks/months)\n4. Long-term capabilities (months+)\n5. Success metrics\n\nReturn as JSON:\n{\n  \"action_plan\": [\n    {\n      \"priority\": 1,\n      \"action\": \"action description\",\n      \"timeline\": \"immediate|weeks|months\",\n      \"effort\": \"low|medium|high\",\n      \"expected_impact\": \"description\",\n      \"success_metrics\": [\"metric1\"],\n      \"owner\": \"who should drive this\",\n      \"dependencies\": [\"dependency1\"]\n    }\n  ],\n  \"strategic_focus\": \"overall strategic direction\",\n  \"success_criteria\": [\"criterion1\"],\n  \"quarterly_targets\": {\n    \"q1_profit_target\": 1000\n  }\n}\n\nFocus on feasibility and impact.\nPrioritize ruthlessly.\nMake metrics specific and measurable."
+}

@@ -1,0 +1,8 @@
+{
+  "name": "generate_strategic_recommendations",
+  "description": "Generate strategic recommendations for master partnership",
+  "model": "llama3.2:3b",
+  "temperature": 0.5,
+  "variables": ["master_profile", "insights", "focus_areas"],
+  "prompt": "Based on master profile and insights, generate strategic recommendations for better partnership.\n\nMaster Profile:\n{{master_profile}}\n\nKey Insights:\n{{insights}}\n\nCurrent Focus Areas:\n{{focus_areas}}\n\nGenerate recommendations for:\n1. How to better support the master\n2. Capabilities to develop\n3. How to anticipate master needs\n4. Communication adaptations needed\n5. Strategic priorities\n\nReturn as JSON:\n{\n  \"recommendations\": [\n    {\n      \"category\": \"support|capabilities|anticipation|communication|priorities\",\n      \"recommendation\": \"specific recommendation\",\n      \"rationale\": \"why this matters\",\n      \"expected_impact\": \"what will improve\",\n      \"priority\": \"high|medium|low\",\n      \"implementation_effort\": \"low|medium|high\"\n    }\n  ],\n  \"strategic_priorities\": [\"priority1\"],\n  \"next_steps\": [\"step1\"]\n}\n\nBe strategic and specific.\nFocus on high-impact recommendations.\nConsider implementation feasibility."
+}

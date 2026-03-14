@@ -50,17 +50,15 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Callable, Optional
 import psutil
-from modules.self_diagnosis import SelfDiagnosis
-from modules.self_modification import SelfModification
-from modules.evolution import EvolutionManager
-from modules.evolution_pipeline import EvolutionPipeline
-from modules.container import DependencyError
+from modules.container import DependencyError, get_container
 
 
 class AutonomousScheduler:
     """Autonomous task scheduler for self-development and maintenance."""
 
-    def __init__(self, scribe, router, economics, forge, container=None, event_bus=None, prompt_manager=None):
+    def __init__(self, scribe, router, economics, forge,
+                 diagnosis=None, modification=None, evolution=None, pipeline=None,
+                 container=None, event_bus=None, prompt_manager=None):
         """
         Initialize the autonomous scheduler.
         
@@ -93,10 +91,16 @@ class AutonomousScheduler:
         self.running = False
         self.thread = None
         
-        # PromptManager must be provided via DI
+        # Container (use provided or global)
+        self._container = container or get_container()
+
+        # PromptManager - try provided or resolve from container
         self.prompt_manager = prompt_manager
         if self.prompt_manager is None:
-            raise DependencyError("PromptManager is required and must be provided via the DI container to AutonomousScheduler")
+            try:
+                self.prompt_manager = self._container.get('PromptManager')
+            except Exception:
+                raise DependencyError("PromptManager is required and must be provided via the DI container to AutonomousScheduler")
         
         # Load scheduler config
         try:
@@ -112,108 +116,171 @@ class AutonomousScheduler:
                 evolution_check_interval = 7200
                 enabled = True
             self.config = DefaultSchedulerConfig()
+
+        # Additional runtime settings from config
+        self.max_concurrent_tasks = getattr(self.config, 'max_concurrent_tasks', 3)
+        self.task_timeout = getattr(self.config, 'task_timeout', 300)
         
         # Priority-based task queue
         self.task_queue = []
         self.task_history = []
 
-        # Use container if provided, otherwise create instances directly
-        if container is not None:
-            try:
-                self.diagnosis = container.get('SelfDiagnosis')
-                self.modification = container.get('SelfModification')
-                self.evolution = container.get('EvolutionManager')
-                self.pipeline = container.get('EvolutionPipeline')
-            except Exception:
-                # Fallback to direct instantiation
-                self._init_components_direct()
-        else:
-            self._init_components_direct()
+        # Optional dependencies - resolved from container if not provided
+        self.diagnosis = diagnosis
+        self.modification = modification
+        self.evolution = evolution
+        self.pipeline = pipeline
+
+        # Lazy cache for resolved components
+        self._lazy: dict = {}
 
         # Register autonomous behaviors
         self.register_default_tasks()
 
-    def _init_components_direct(self):
-        """Initialize components directly (fallback when no container available)"""
-        # Pass prompt_manager where supported to preserve DI behavior in direct init
-        self.diagnosis = SelfDiagnosis(self.scribe, self.router, self.forge, prompt_manager=self.prompt_manager)
-        self.modification = SelfModification(self.scribe, self.router, self.forge)
-        self.evolution = EvolutionManager(self.scribe, self.router, self.forge, self.diagnosis, self.modification)
-        self.pipeline = EvolutionPipeline(
-            self.scribe,
-            self.router,
-            self.forge,
-            self.diagnosis,
-            self.modification,
-            self.evolution,
-            prompt_manager=self.prompt_manager
-        )
+    # Lazy getters for optional components (resolve via container when needed)
+    def _get_diagnosis(self):
+        if self.diagnosis:
+            return self.diagnosis
+        if 'SelfDiagnosis' not in self._lazy:
+            self._lazy['SelfDiagnosis'] = self._container.get('SelfDiagnosis')
+        return self._lazy['SelfDiagnosis']
+
+    def _get_modification(self):
+        if self.modification:
+            return self.modification
+        if 'SelfModification' not in self._lazy:
+            self._lazy['SelfModification'] = self._container.get('SelfModification')
+        return self._lazy['SelfModification']
+
+    def _get_evolution(self):
+        if self.evolution:
+            return self.evolution
+        if 'EvolutionManager' not in self._lazy:
+            self._lazy['EvolutionManager'] = self._container.get('EvolutionManager')
+        return self._lazy['EvolutionManager']
+
+    def _get_pipeline(self):
+        if self.pipeline:
+            return self.pipeline
+        if 'EvolutionPipeline' not in self._lazy:
+            self._lazy['EvolutionPipeline'] = self._container.get('EvolutionPipeline')
+        return self._lazy['EvolutionPipeline']
+
+    def _get_metacognition(self):
+        if 'MetaCognition' not in self._lazy:
+            self._lazy['MetaCognition'] = self._container.get('MetaCognition')
+        return self._lazy['MetaCognition']
+
+    def _get_capability_discovery(self):
+        if 'CapabilityDiscovery' not in self._lazy:
+            self._lazy['CapabilityDiscovery'] = self._container.get('CapabilityDiscovery')
+        return self._lazy['CapabilityDiscovery']
+
+    def _get_intent_predictor(self):
+        if 'IntentPredictor' not in self._lazy:
+            self._lazy['IntentPredictor'] = self._container.get('IntentPredictor')
+        return self._lazy['IntentPredictor']
+
+    def _get_environment_explorer(self):
+        if 'EnvironmentExplorer' not in self._lazy:
+            self._lazy['EnvironmentExplorer'] = self._container.get('EnvironmentExplorer')
+        return self._lazy['EnvironmentExplorer']
 
     def register_default_tasks(self):
         """Register default autonomous behaviors"""
-        # TESTING MODE: Shortened intervals for 1-hour test window
-        # Original intervals commented for reference
+        # Use configured intervals (values in seconds in SchedulerConfig)
+        health_min = max(1, int(self.config.health_check_interval / 60))
+        diagnosis_min = max(1, int(self.config.diagnosis_interval / 60))
+        reflection_min = max(1, int(self.config.reflection_interval / 60))
+        evolution_min = max(1, int(self.config.evolution_check_interval / 60))
+
         self.register_task(
             name="system_health_check",
             function=self.check_system_health,
-            interval_minutes=5,  # Was: 30 min
-            priority=1  # High priority - survival related
-        )
-        self.register_task(
-            name="economic_review",
-            function=self.review_economics,
-            interval_minutes=10,  # Was: 1 hour
-            priority=2
-        )
-        self.register_task(
-            name="reflection_cycle",
-            function=self.run_reflection,
-            interval_minutes=15,  # Was: 24 hours
-            priority=3
-        )
-        self.register_task(
-            name="tool_maintenance",
-            function=self.maintain_tools,
-            interval_minutes=20,  # Was: 6 hours
-            priority=2
-        )
-        self.register_task(
-            name="evolution_check",
-            function=self.check_evolution_needs,
-            interval_minutes=25,  # Was: 24 hours
-            priority=2
+            interval_minutes=health_min,
+            priority=1
         )
 
         self.register_task(
             name="self_diagnosis",
             function=self.run_self_diagnosis,
-            interval_minutes=30,  # Was: 6 hours
+            interval_minutes=diagnosis_min,
+            priority=2
+        )
+
+        self.register_task(
+            name="reflection_cycle",
+            function=self.run_reflection,
+            interval_minutes=reflection_min,
             priority=3
         )
 
-        # Advanced self-development tasks
+        self.register_task(
+            name="evolution_check",
+            function=self.check_evolution_needs,
+            interval_minutes=evolution_min,
+            priority=2
+        )
+
+        # Secondary tasks - derived from main intervals where appropriate
+        self.register_task(
+            name="economic_review",
+            function=self.review_economics,
+            interval_minutes=max(1, int(3600 / 60)),
+            priority=2
+        )
+
         self.register_task(
             name="performance_snapshot",
             function=self.record_performance_snapshot,
-            interval_minutes=8,  # Was: 1 hour
+            interval_minutes=max(1, int(3600 / 60)),
             priority=2
         )
+
+        # Phase 2: Master Model & Income Tasks (NEW)
+        # Master model reflection - weekly (10080 minutes = 7 days)
+        self.register_task(
+            name="master_model_reflection",
+            function=self.run_master_model_reflection,
+            interval_minutes=max(60, 10080),  # Weekly with minimum 1 hour for testing
+            priority=2
+        )
+
+        # Income opportunity identification - 6 hourly (360 minutes)
+        self.register_task(
+            name="identify_income_opportunities",
+            function=self.identify_income_opportunities,
+            interval_minutes=max(30, 360),  # 6 hours with minimum 30 min
+            priority=3
+        )
+
+        # Profitability reporting - daily (1440 minutes)
+        self.register_task(
+            name="profitability_report",
+            function=self.generate_profitability_report,
+            interval_minutes=max(60, 1440),  # Daily with minimum 1 hour
+            priority=2
+        )
+
+        # Discovery / exploration tasks (less frequent)
         self.register_task(
             name="capability_discovery",
             function=self.run_capability_discovery,
-            interval_minutes=35,  # Was: 48 hours
+            interval_minutes=max(60, int(48 * 60)),
             priority=3
         )
+
         self.register_task(
             name="intent_prediction",
             function=self.run_intent_prediction,
-            interval_minutes=40,  # Was: 12 hours
+            interval_minutes=max(30, int(12 * 60)),
             priority=3
         )
+
         self.register_task(
             name="environment_exploration",
             function=self.run_environment_exploration,
-            interval_minutes=45,  # Was: 24 hours
+            interval_minutes=max(60, int(24 * 60)),
             priority=3
         )
 
@@ -465,16 +532,32 @@ class AutonomousScheduler:
 
     def generate_income_ideas(self):
         """Generate ideas for income generation"""
-        # Use PromptManager (mandatory)
-        prompt_data = self.prompt_manager.get_prompt("income_generation_ideas")
+        # Gather capabilities and tools summaries
+        capabilities = self._get_capability_summary()
+        tools = self._get_tools_summary()
+
+        # Use PromptManager with required variables
+        prompt_data = self.prompt_manager.get_prompt(
+            "income_generation_ideas",
+            capabilities=capabilities,
+            tools=tools
+        )
+
         model_name, _ = self.router.route_request("reasoning", "medium")
         response = self.router.call_model(
             model_name,
             prompt_data["prompt"],
-            prompt_data["system_prompt"]
+            prompt_data.get("system_prompt", "")
         )
 
-        return f"Generated income ideas: {response}" if response else "No ideas generated"
+        # Parse response into list of ideas
+        ideas = []
+        if response:
+            for line in response.split('\n'):
+                if line.strip() and (line.strip()[0].isdigit() or line.strip().startswith('-')):
+                    ideas.append(line.strip())
+
+        return ideas if ideas else [response] if response else []
 
     def run_reflection(self):
         """Daily reflection cycle to learn from interactions"""
@@ -665,61 +748,153 @@ Response format:
 
     def check_evolution_needs(self):
         """Check if evolution is needed and run if necessary"""
-        # Run quick diagnosis
-        diagnosis = self.diagnosis.perform_full_diagnosis()
-        
+        # Run quick diagnosis (lazy-resolved)
+        diagnosis = self._get_diagnosis().perform_full_diagnosis()
+
+        pipeline = self._get_pipeline()
         # Check evolution conditions
-        if self.pipeline.should_evolve(diagnosis):
+        if pipeline.should_evolve(diagnosis):
             # Notify before starting evolution
             self.scribe.log_action(
                 "Evolution conditions met",
                 f"Starting evolution pipeline with {len(diagnosis.get('improvement_opportunities', []))} opportunities",
                 "evolution_triggered"
             )
-            
+
             # Run evolution pipeline
-            result = self.pipeline.run_autonomous_evolution()
-            
+            result = pipeline.run_autonomous_evolution()
+
             return f"Evolution pipeline completed: {result.get('status')}"
         else:
             return "Evolution not needed at this time"
             
     def run_self_diagnosis(self):
         """Run periodic self-diagnosis"""
-        diagnosis = self.diagnosis.perform_full_diagnosis()
-        
+        diagnosis = self._get_diagnosis().perform_full_diagnosis()
+
         # Log key metrics
         bottlenecks = len(diagnosis.get("bottlenecks", []))
         opportunities = len(diagnosis.get("improvement_opportunities", []))
-        
+
         return f"Self-diagnosis complete: {bottlenecks} bottlenecks, {opportunities} opportunities"
     
     def record_performance_snapshot(self):
         """Record performance metrics for trend analysis"""
-        from modules.metacognition import MetaCognition
-        metacog = MetaCognition(self.scribe, self.router, self.diagnosis)
+        metacog = self._get_metacognition()
         metrics = metacog.collect_current_metrics()
         metacog.record_performance_snapshot(metrics)
         return f"Performance snapshot recorded: {metrics.get('error_rate', 0)}% error rate"
     
     def run_capability_discovery(self):
         """Discover new capabilities the system could develop"""
-        from modules.capability_discovery import CapabilityDiscovery
-        cap_discovery = CapabilityDiscovery(self.scribe, self.router, self.forge)
+        cap_discovery = self._get_capability_discovery()
         capabilities = cap_discovery.discover_new_capabilities()
         return f"Discovered {len(capabilities)} new capabilities"
     
     def run_intent_prediction(self):
         """Predict master's next commands"""
-        from modules.intent_predictor import IntentPredictor
-        intent_pred = IntentPredictor(self.scribe, self.router)
+        intent_pred = self._get_intent_predictor()
         predictions = intent_pred.predict_next_commands()
         return f"Made {len(predictions)} intent predictions"
     
     def run_environment_exploration(self):
         """Explore environment for opportunities"""
-        from modules.environment_explorer import EnvironmentExplorer
-        env_exp = EnvironmentExplorer(self.scribe, self.router)
+        env_exp = self._get_environment_explorer()
         exploration = env_exp.explore_environment()
         opportunities = env_exp.find_development_opportunities()
         return f"Environment explored: {len(exploration.get('available_commands', []))} commands, {len(opportunities)} opportunities"
+
+    # Phase 2: Master Model & Income Tasks (NEW)
+    def _get_master_model_manager(self):
+        """Get MasterModelManager from container"""
+        if 'MasterModelManager' not in self._lazy:
+            self._lazy['MasterModelManager'] = self._container.get('MasterModelManager')
+        return self._lazy['MasterModelManager']
+
+    def _get_income_seeker(self):
+        """Get IncomeSeeker from container"""
+        if 'IncomeSeeker' not in self._lazy:
+            self._lazy['IncomeSeeker'] = self._container.get('IncomeSeeker')
+        return self._lazy['IncomeSeeker']
+
+    def run_master_model_reflection(self):
+        """Weekly reflection on master psychological model"""
+        try:
+            master_model = self._get_master_model_manager()
+            summary = master_model.reflection_cycle()
+
+            traits_updated = summary.get('traits_updated', 0)
+            interactions_analyzed = summary.get('interactions_analyzed', 0)
+
+            self.scribe.log_action(
+                "Master model reflection completed",
+                reasoning=f"Analyzed {interactions_analyzed} interactions",
+                outcome=f"Updated {traits_updated} traits"
+            )
+
+            return f"Master model reflection: {interactions_analyzed} interactions, {traits_updated} traits updated"
+        except Exception as e:
+            self.scribe.log_action(
+                "Master model reflection failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Master model reflection failed: {str(e)}"
+
+    def identify_income_opportunities(self):
+        """Identify income generation opportunities"""
+        try:
+            income_seeker = self._get_income_seeker()
+            opportunity_ids = income_seeker.identify_opportunities()
+
+            self.scribe.log_action(
+                "Income opportunity identification completed",
+                reasoning="Scanning for income opportunities",
+                outcome=f"Found {len(opportunity_ids)} opportunities"
+            )
+
+            return f"Income opportunities identified: {len(opportunity_ids)} new opportunities"
+        except Exception as e:
+            self.scribe.log_action(
+                "Income opportunity identification failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Income opportunity identification failed: {str(e)}"
+
+    def generate_profitability_report(self):
+        """Generate daily profitability report"""
+        try:
+            report = self.economics.get_profitability_report(days=30)
+            report_id = self.economics.save_profitability_report(report)
+
+            is_profitable = report.get('is_profitable', False)
+            net_profit = report.get('net_profit', 0)
+
+            if not is_profitable:
+                # Emit profitability alert
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.emit(Event(EventType.PROFITABILITY_ALERT, {
+                            'net_profit': net_profit,
+                            'is_profitable': is_profitable
+                        }))
+                    except:
+                        pass
+
+            self.scribe.log_action(
+                "Profitability report generated",
+                reasoning=f"30-day period analysis",
+                outcome=f"Report ID: {report_id}, Profit: ${net_profit:.2f}"
+            )
+
+            status = "PROFITABLE" if is_profitable else "NOT PROFITABLE"
+            return f"Profitability report: ${net_profit:.2f} net profit ({status})"
+        except Exception as e:
+            self.scribe.log_action(
+                "Profitability report generation failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Profitability report failed: {str(e)}"

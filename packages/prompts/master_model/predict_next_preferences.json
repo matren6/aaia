@@ -1,0 +1,8 @@
+{
+  "name": "predict_next_preferences",
+  "description": "Predict master's next preferences and likely needs",
+  "model": "llama3.2:3b",
+  "temperature": 0.5,
+  "variables": ["master_profile", "recent_patterns", "interaction_count"],
+  "prompt": "Based on the master's profile and patterns, predict their next preferences and likely needs.\n\nMaster Profile:\n{{master_profile}}\n\nRecent Patterns:\n{{recent_patterns}}\n\nInteractions Analyzed: {{interaction_count}}\n\nPredictions to make:\n\n1. **Next Likely Action**: What will the master probably do next?\n2. **Preferred Format**: How will they want information presented?\n3. **Time Preference**: When will they likely engage next?\n4. **Resource Needs**: What will they likely need?\n5. **Decision Style**: How should we present options?\n\nReturn as JSON:\n{\n  \"predictions\": [\n    {\n      \"category\": \"next_action|information_format|timing|resources|decision_style\",\n      \"prediction\": \"specific prediction\",\n      \"confidence\": 0.80,\n      \"reasoning\": \"why this prediction\"\n    }\n  ],\n  \"overall_confidence\": 0.75,\n  \"notes\": \"additional observations\"\n}\n\nConfidence never exceeds 0.95.\nBe specific and actionable.\nGround predictions in observed patterns."
+}

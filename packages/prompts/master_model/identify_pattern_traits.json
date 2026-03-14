@@ -1,0 +1,8 @@
+{
+  "name": "identify_pattern_traits",
+  "description": "Identify psychological patterns across interactions",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["interaction_summary", "interaction_count", "trait_categories"],
+  "prompt": "Analyze these {{interaction_count}} recent interactions to identify psychological PATTERNS about the master.\n\nInteraction Summary:\n{{interaction_summary}}\n\nTrait Categories to Consider:\n{{trait_categories}}\n\nIdentify behavioral patterns that suggest deeper psychological traits:\n\n1. **Consistency Patterns**: What does the master do consistently across interactions?\n2. **Preference Patterns**: What clear preferences emerge (time, detail, style)?\n3. **Value Patterns**: What does the master consistently prioritize?\n4. **Response Patterns**: How does the master typically respond to different situations?\n5. **Learning Patterns**: How does the master approach learning/understanding?\n\nFor each pattern, determine:\n- The underlying psychological trait\n- Confidence level (0.0-0.95)\n- Specific evidence from interactions\n- Pattern strength (weak/moderate/strong)\n\nReturn as JSON array:\n[\n  {\n    \"category\": \"decision_style\",\n    \"name\": \"pattern_trait_name\",\n    \"value\": \"observed_pattern\",\n    \"confidence\": 0.80,\n    \"evidence\": \"pattern evidence summary\",\n    \"pattern_strength\": \"strong|moderate|weak\",\n    \"occurrences\": 3\n  }\n]\n\nRules:\n- Only patterns evident in multiple interactions\n- Confidence never exceeds 0.95\n- Include occurrence count when pattern identified\n- Focus on actionable psychological insights\n- Be conservative but thorough"
+}

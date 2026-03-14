@@ -66,47 +66,41 @@ class CapabilityDiscovery:
 
     def load_capability_knowledge(self) -> Dict:
         """Load or initialize capability knowledge base"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
+        # Use a local capability_knowledge table for historical reasons; create if missing
+        try:
+            self.scribe.db.execute('''
+                CREATE TABLE IF NOT EXISTS capability_knowledge (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    capability TEXT UNIQUE NOT NULL,
+                    description TEXT,
+                    value REAL,
+                    complexity INTEGER,
+                    dependencies TEXT,
+                    status TEXT,
+                    discovered_at TEXT,
+                    developed_at TEXT
+                )
+            ''')
+        except Exception:
+            pass
 
-        # Create table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS capability_knowledge (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                capability TEXT UNIQUE NOT NULL,
-                description TEXT,
-                value REAL,
-                complexity INTEGER,
-                dependencies TEXT,
-                status TEXT,
-                discovered_at TEXT,
-                developed_at TEXT
-            )
-        ''')
-
-        # Get existing capabilities
-        cursor.execute("SELECT capability, description, value, complexity, dependencies, status FROM capability_knowledge")
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.scribe.db.query("SELECT capability, description, value, complexity, dependencies, status FROM capability_knowledge")
 
         capabilities = {}
         for row in rows:
-            capabilities[row[0]] = {
-                "description": row[1],
-                "value": row[2],
-                "complexity": row[3],
-                "dependencies": json.loads(row[4]) if row[4] else [],
-                "status": row[5]
+            capabilities[row['capability']] = {
+                "description": row['description'],
+                "value": row['value'],
+                "complexity": row['complexity'],
+                "dependencies": json.loads(row['dependencies']) if row['dependencies'] else [],
+                "status": row['status']
             }
 
         return capabilities
 
     def save_capability(self, capability: Dict) -> None:
         """Save a discovered capability to knowledge base"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        self.scribe.db.execute('''
             INSERT OR REPLACE INTO capability_knowledge (
                 capability, description, value, complexity, dependencies, status, discovered_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -119,9 +113,6 @@ class CapabilityDiscovery:
             capability.get("status", "discovered"),
             datetime.now().isoformat()
         ))
-
-        conn.commit()
-        conn.close()
 
     def discover_new_capabilities(self) -> List[Dict]:
         """Discover capabilities we don't have but could develop"""
@@ -154,9 +145,20 @@ class CapabilityDiscovery:
 
             capabilities = self.parse_capability_suggestions(response)
 
-            # Save discovered capabilities
+            # Save discovered capabilities and publish discovery events
             for cap in capabilities:
                 self.save_capability(cap)
+                # Publish capability discovered event for each capability
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.publish(Event(
+                            type=EventType.CAPABILITY_DISCOVERED,
+                            data=cap,
+                            source='CapabilityDiscovery'
+                        ))
+                    except Exception:
+                        pass
 
             self.scribe.log_action(
                 "Capability discovery",
@@ -189,11 +191,7 @@ class CapabilityDiscovery:
 
     def analyze_command_patterns(self) -> List[str]:
         """Analyze past commands for patterns"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        # Get most frequent commands from last 30 days
-        cursor.execute('''
+        rows = self.scribe.db.query('''
             SELECT action, COUNT(*) as frequency
             FROM action_log
             WHERE timestamp > datetime('now', '-30 days')
@@ -202,30 +200,22 @@ class CapabilityDiscovery:
             LIMIT 20
         ''')
 
-        rows = cursor.fetchall()
-        conn.close()
-
-        return [row[0][:100] for row in rows]  # Limit length
+        return [row['action'][:100] for row in rows]
 
     def analyze_potential_integrations(self) -> List[str]:
         """Analyze potential external API/service integrations"""
         integrations = []
 
         # Check for common API patterns in past actions
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        rows = self.scribe.db.query('''
             SELECT DISTINCT action FROM action_log
             WHERE action LIKE '%api%' OR action LIKE '%http%' OR action LIKE '%request%'
             OR action LIKE '%fetch%' OR action LIKE '%web%'
             LIMIT 10
         ''')
 
-        for row in cursor.fetchall():
-            integrations.append(row[0][:50])
-
-        conn.close()
+        for row in rows:
+            integrations.append(row['action'][:50])
 
         # Add common integrations to consider
         potential = [
@@ -248,11 +238,7 @@ class CapabilityDiscovery:
         gaps = []
 
         # Check what's missing
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        # Check for failed actions (indicates missing capabilities)
-        cursor.execute('''
+        rows = self.scribe.db.query('''
             SELECT action, COUNT(*) as failure_count
             FROM action_log
             WHERE (outcome LIKE '%error%' OR outcome LIKE '%failed%')
@@ -262,11 +248,11 @@ class CapabilityDiscovery:
             LIMIT 10
         ''')
 
-        for action, count in cursor.fetchall():
+        for row in rows:
+            action = row['action']
+            count = row['failure_count']
             if count >= 2:
                 gaps.append(f"Failed: {action[:50]} (failed {count}x)")
-
-        conn.close()
 
         # Add common gaps based on module check
         if not hasattr(self, 'environment_explorer'):
@@ -331,10 +317,7 @@ class CapabilityDiscovery:
     def get_development_priorities(self) -> List[Dict]:
         """Get prioritized list of capabilities to develop"""
         # Load all discovered capabilities
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        rows = self.scribe.db.query('''
             SELECT capability, description, value, complexity, dependencies, status
             FROM capability_knowledge
             WHERE status IN ('discovered', 'recommended', 'in_progress')
@@ -342,42 +325,31 @@ class CapabilityDiscovery:
             LIMIT 10
         ''')
 
-        rows = cursor.fetchall()
-        conn.close()
-
         priorities = []
         for row in rows:
-            # Calculate priority score (higher value, lower complexity = higher priority)
-            priority_score = row[2] / max(row[3], 1) if row[2] and row[3] else 0
+            priority_score = row['value'] / max(row['complexity'], 1) if row['value'] and row['complexity'] else 0
 
             priorities.append({
-                "name": row[0],
-                "description": row[1],
-                "value": row[2],
-                "complexity": row[3],
-                "dependencies": json.loads(row[4]) if row[4] else [],
-                "status": row[5],
+                "name": row['capability'],
+                "description": row['description'],
+                "value": row['value'],
+                "complexity": row['complexity'],
+                "dependencies": json.loads(row['dependencies']) if row['dependencies'] else [],
+                "status": row['status'],
                 "priority_score": round(priority_score, 2)
             })
 
-        # Sort by priority score
         priorities.sort(key=lambda x: x["priority_score"], reverse=True)
 
         return priorities
 
     def mark_capability_developed(self, capability_name: str) -> None:
         """Mark a capability as developed"""
-        conn = sqlite3.connect(self.scribe.db_path)
-        cursor = conn.cursor()
-
-        cursor.execute('''
+        self.scribe.db.execute('''
             UPDATE capability_knowledge
             SET status = 'developed', developed_at = ?
             WHERE capability = ?
         ''', (datetime.now().isoformat(), capability_name))
-
-        conn.commit()
-        conn.close()
 
         self.scribe.log_action(
             "Capability developed",

@@ -44,135 +44,83 @@ class Scribe:
     Provides centralized SQLite-based storage for all system data.
     """
     
-    def __init__(self, db_path: str = None):
+    def __init__(self, db_path: str = None, db_manager=None):
         """
         Initialize Scribe with database path.
         
         Args:
             db_path: Path to SQLite database. If None, uses config default.
         """
-        if db_path is None:
-            # Try to get from config
-            try:
-                from modules.settings import get_config
-                db_path = get_config().database.path
-            except Exception:
-                db_path = "data/scribe.db"
-        
+        # Prefer injected database manager
         self.db_path = db_path
-        self.init_database()
+        if db_manager is not None:
+            # If a database manager is provided, use it and record its path if available
+            self.db = db_manager
+            try:
+                if hasattr(db_manager, 'db_path') and db_manager.db_path:
+                    self.db_path = db_manager.db_path
+            except Exception:
+                pass
+        else:
+            try:
+                from modules.database_manager import get_database_manager
+                if db_path is None:
+                    from modules.settings import get_config
+                    db_path = get_config().database.path
+                # Ensure self.db_path reflects resolved path
+                self.db_path = db_path
+                self.db = get_database_manager(db_path)
+            except Exception:
+                # Fallback to simple sqlite connection wrapper
+                import sqlite3
+                class _SimpleDB:
+                    def __init__(self, path):
+                        self._path = path
+                    def execute(self, sql, params=()):
+                        conn = sqlite3.connect(self._path)
+                        cur = conn.cursor()
+                        cur.execute(sql, params)
+                        conn.commit()
+                        conn.close()
+                    def query(self, sql, params=()):
+                        conn = sqlite3.connect(self._path)
+                        conn.row_factory = sqlite3.Row
+                        cur = conn.cursor()
+                        cur.execute(sql, params)
+                        rows = cur.fetchall()
+                        conn.close()
+                        return rows
+                    def query_one(self, sql, params=()):
+                        conn = sqlite3.connect(self._path)
+                        conn.row_factory = sqlite3.Row
+                        cur = conn.cursor()
+                        cur.execute(sql, params)
+                        row = cur.fetchone()
+                        conn.close()
+                        return row
+                if db_path is None:
+                    db_path = "data/scribe.db"
+                # Ensure self.db_path reflects resolved path
+                self.db_path = db_path
+                self.db = _SimpleDB(db_path)
         
-    def init_database(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Directives table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS directives (
-                id INTEGER PRIMARY KEY,
-                type TEXT,
-                title TEXT,
-                content TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Hierarchy of needs table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS hierarchy_of_needs (
-                id INTEGER PRIMARY KEY,
-                tier INTEGER,
-                name TEXT,
-                description TEXT,
-                current_focus BOOLEAN DEFAULT 0,
-                progress REAL DEFAULT 0.0,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Economic log table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS economic_log (
-                id INTEGER PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                description TEXT,
-                amount REAL,
-                balance_after REAL,
-                category TEXT
-            )
-        ''')
-        
-        # Action log table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS action_log (
-                id INTEGER PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                action TEXT,
-                reasoning TEXT,
-                outcome TEXT,
-                cost REAL DEFAULT 0.0
-            )
-        ''')
-        
-        # Dialogue log table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS dialogue_log (
-                id INTEGER PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                phase TEXT,
-                content TEXT,
-                master_command TEXT,
-                reasoning TEXT
-            )
-        ''')
-        
-        # Master model table
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS master_model (
-                id INTEGER PRIMARY KEY,
-                trait TEXT,
-                value TEXT,
-                confidence REAL DEFAULT 0.5,
-                evidence_count INTEGER DEFAULT 0,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Tools registry
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tools (
-                id INTEGER PRIMARY KEY,
-                name TEXT UNIQUE,
-                description TEXT,
-                file_path TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used TIMESTAMP,
-                usage_count INTEGER DEFAULT 0
-            )
-        ''')
-        
-        # System state
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_state (
-                key TEXT PRIMARY KEY,
-                value TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
+    # Database schema and migrations are handled by DatabaseManager
         
     def log_action(self, action: str, reasoning: str, outcome: str = "", cost: float = 0.0):
         """Log an action with reasoning"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
-            (action, reasoning, outcome, cost)
-        )
-        conn.commit()
-        conn.close()
+        import json
+        metadata = None
+        try:
+            self.db.execute(
+                "INSERT INTO action_log (action, reasoning, outcome, cost, metadata) VALUES (?, ?, ?, ?, ?)",
+                (action, reasoning, outcome, cost, metadata)
+            )
+        except Exception:
+            # Fallback to legacy columns if metadata not present
+            self.db.execute(
+                "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
+                (action, reasoning, outcome, cost)
+            )
     
     def validate_mandates(self, action_data: Dict) -> bool:
         """
@@ -201,32 +149,25 @@ class Scribe:
         Returns:
             Dictionary with balance and recent transactions
         """
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
-        row = cursor.fetchone()
-        balance = float(row[0]) if row else 100.0
-        
-        cursor.execute('''
+        row = self.db.query_one("SELECT value FROM system_state WHERE key='current_balance'")
+        balance = float(row['value']) if row else 100.0
+
+        recent_rows = self.db.query('''
             SELECT description, amount, balance_after, timestamp 
             FROM economic_log 
             ORDER BY timestamp DESC 
             LIMIT 5
         ''')
-        recent = cursor.fetchall()
-        
-        conn.close()
-        
+
         return {
             "balance": balance,
             "recent_transactions": [
                 {
-                    "description": r[0],
-                    "amount": r[1],
-                    "balance_after": r[2],
-                    "timestamp": r[3]
+                    "description": r['description'],
+                    "amount": r['amount'],
+                    "balance_after": r['balance_after'],
+                    "timestamp": r['timestamp']
                 }
-                for r in recent
+                for r in recent_rows
             ]
         }

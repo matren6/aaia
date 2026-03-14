@@ -1,0 +1,8 @@
+{
+  "name": "catastrophic_risk",
+  "description": "Determine if risk is catastrophic and cannot be overridden",
+  "model": "llama3.2:3b",
+  "temperature": 0.1,
+  "variables": ["action", "violations"],
+  "prompt": "Determine if the following violations represent a CATASTROPHIC risk that cannot be overridden, even with explicit master approval.\n\nProposed Action:\n{{action}}\n\nViolations Identified:\n{{violations}}\n\nCatastrophic risks are defined as:\n1. Data Destruction: Complete loss of critical data without backup or recovery\n2. Physical Harm: Actions causing physical injury or safety risks\n3. Legal Violation: Criminal activity or severe legal violations\n4. Financial Catastrophe: Unrecoverable financial loss or bankruptcy\n5. Security Breach: Exposing credentials or critical security infrastructure\n\nNon-catastrophic risks (CAN be overridden):\n- Data modification (minor or recoverable)\n- Resource consumption (significant but not catastrophic)\n- Operational risk (temporary service interruption)\n\nAnalyze the violations and determine:\n1. Does any violation fall into catastrophic category?\n2. Is the risk irreversible?\n3. Does it have consequences beyond master's control?\n4. Is there no reasonable recovery mechanism?\n\nReturn as JSON:\n{\n  \"is_catastrophic\": true|false,\n  \"reasoning\": \"detailed explanation\",\n  \"catastrophic_categories\": [\"category1\", ...],\n  \"confidence\": 0.9,\n  \"alternative_recommendation\": \"safer approach if applicable\"\n}\n\nBe conservative: If uncertain, mark as catastrophic rather than permissive."
+}

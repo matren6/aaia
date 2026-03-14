@@ -1,0 +1,8 @@
+{
+  "name": "project_profitability",
+  "description": "Project future profitability based on trends",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["historical_data", "projection_months", "focus_on"],
+  "prompt": "Project profitability {{projection_months}} months forward based on trends. Focus on: {{focus_on}}\n\nHistorical Data (recent periods):\n{{historical_data}}\n\nMake projections for:\n1. Income trends\n2. Cost trends  \n3. Profitability trajectory\n4. Key assumptions\n5. Risk factors\n\nReturn as JSON:\n{\n  \"projection_months\": {{projection_months}},\n  \"projections\": [\n    {\n      \"month\": 1,\n      \"projected_income\": 2000,\n      \"projected_costs\": 1500,\n      \"projected_profit\": 500,\n      \"confidence\": 0.85\n    }\n  ],\n  \"trend_summary\": \"overall trend description\",\n  \"key_assumptions\": [\"assumption1\"],\n  \"risk_factors\": [\"risk1\"],\n  \"break_even_outlook\": \"positive|neutral|concerning\"\n}\n\nBe realistic and data-driven.\nState assumptions clearly.\nIdentify key risks and uncertainties."
+}

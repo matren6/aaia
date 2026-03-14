@@ -1,0 +1,8 @@
+{
+  "name": "analyze_trait_evolution",
+  "description": "Analyze how master traits have evolved over time",
+  "model": "llama3.2:3b",
+  "temperature": 0.4,
+  "variables": ["trait_history", "time_period", "history_length"],
+  "prompt": "Analyze how the master's psychological traits have evolved over the {{time_period}} period.\n\nTrait History ({{history_length}} records):\n{{trait_history}}\n\nAnalyze:\n1. Which traits have strengthened or weakened?\n2. What new traits have emerged?\n3. What patterns of change are visible?\n4. Is the master becoming more or less certain in their traits?\n5. What does trait evolution suggest about master development?\n\nReturn as JSON:\n{\n  \"evolution_score\": 0.7,\n  \"period\": \"{{time_period}}\",\n  \"changes\": [\n    {\n      \"trait\": \"trait_name\",\n      \"direction\": \"strengthened|weakened|emerged|stable\",\n      \"confidence_change\": 0.15,\n      \"evidence\": \"what shows this change\"\n    }\n  ],\n  \"overall_trend\": \"master description of trend\",\n  \"significant_shifts\": [\"shift1\", \"shift2\"]\n}\n\nBe analytical.\nFocus on genuine changes, not noise.\nConfidence scores reflect certainty, not trait value."
+}

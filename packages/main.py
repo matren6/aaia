@@ -9,6 +9,9 @@ import time
 import sqlite3
 from datetime import datetime
 from typing import Optional
+import argparse
+import threading
+import os
 
 # New architectural components
 from modules.settings import get_config, SystemConfig, validate_system_config
@@ -42,14 +45,13 @@ from modules.evolution_pipeline import EvolutionPipeline
 from modules.prompt_optimizer import PromptOptimizer
 
 # Prompt management is provided via the DI container (PromptManager)
+import json
+from dataclasses import asdict
 
 class Arbiter:
     def __init__(self):
         """
         Initialize the Arbiter and all modules.
-        
-        Args:
-            use_container: If True, use dependency injection container
         """
         data_dir = Path.home() / ".local/share/aaia"
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +59,8 @@ class Arbiter:
         # Load configuration
         self.config = get_config()
         self.config.database.path = str(data_dir / "scribe.db")
-        
+        #print(json.dumps(asdict(self.config), indent=2, default=str))
+
         # Validate configuration before starting
         if not validate_system_config(self.config):
             raise ValueError("Configuration validation failed. Please fix the errors above.")
@@ -86,38 +89,18 @@ class Arbiter:
         
     def _init_container(self):
         """Initialize using dependency injection container."""
-        container = get_container()
-        
-        # Register services
+        # Build the system via SystemBuilder and keep only the container reference.
         from modules.setup import SystemBuilder
         builder = SystemBuilder(self.config)
-        
-        # Build and get modules
         system = builder.build()
-        modules = system['modules']
-        
-        # Assign to self
-        self.scribe = modules.get('Scribe')
-        self.economics = modules.get('EconomicManager')
-        self.mandates = modules.get('MandateEnforcer')
-        self.router = modules.get('ModelRouter')
-        self.dialogue = modules.get('DialogueManager')
-        self.forge = modules.get('Forge')
-        self.scheduler = modules.get('AutonomousScheduler')
-        self.goals = modules.get('GoalSystem')
-        self.hierarchy_manager = modules.get('HierarchyManager')
-        self.diagnosis = modules.get('SelfDiagnosis')
-        self.modification = modules.get('SelfModification')
-        self.evolution = modules.get('EvolutionManager')
-        self.pipeline = modules.get('EvolutionPipeline')
-        self.metacognition = modules.get('MetaCognition')
-        self.capability_discovery = modules.get('CapabilityDiscovery')
-        self.intent_predictor = modules.get('IntentPredictor')
-        self.environment_explorer = modules.get('EnvironmentExplorer')
-        self.strategy_optimizer = modules.get('StrategyOptimizer')
-        self.orchestrator = modules.get('EvolutionOrchestrator')
-        # PromptManager from modules
-        self.prompt_manager = modules.get('PromptManager')
+
+        # Store only container and convenient event_bus reference.
+        self.container = system.get('container')
+        # Ensure event bus reference exists for convenience
+        try:
+            self.event_bus = self.container.get('EventBus')
+        except Exception:
+            self.event_bus = get_event_bus()
         
     def init_hierarchy(self):
         """Initialize hierarchy of needs"""
@@ -139,59 +122,221 @@ class Arbiter:
             
         conn.commit()
         conn.close()
+
+    # Helper properties to access modules via container (no manual assignments)
+    @property
+    def scribe(self):
+        return self.container.get('Scribe')
+
+    @property
+    def router(self):
+        return self.container.get('ModelRouter')
+
+    @property
+    def mandates(self):
+        return self.container.get('MandateEnforcer')
+
+    @property
+    def dialogue(self):
+        return self.container.get('DialogueManager')
+
+    @property
+    def economics(self):
+        return self.container.get('EconomicManager')
+
+    @property
+    def forge(self):
+        return self.container.get('Forge')
+
+    @property
+    def scheduler(self):
+        return self.container.get('AutonomousScheduler')
+
+    @property
+    def goals(self):
+        return self.container.get('GoalSystem')
+
+    @property
+    def hierarchy_manager(self):
+        return self.container.get('HierarchyManager')
+
+    @property
+    def diagnosis(self):
+        return self.container.get('SelfDiagnosis')
+
+    @property
+    def modification(self):
+        return self.container.get('SelfModification')
+
+    @property
+    def evolution(self):
+        return self.container.get('EvolutionManager')
+
+    @property
+    def pipeline(self):
+        return self.container.get('EvolutionPipeline')
+
+    @property
+    def metacognition(self):
+        return self.container.get('MetaCognition')
+
+    @property
+    def capability_discovery(self):
+        return self.container.get('CapabilityDiscovery')
+
+    @property
+    def intent_predictor(self):
+        return self.container.get('IntentPredictor')
+
+    @property
+    def environment_explorer(self):
+        return self.container.get('EnvironmentExplorer')
+
+    @property
+    def strategy_optimizer(self):
+        return self.container.get('StrategyOptimizer')
+
+    @property
+    def orchestrator(self):
+        return self.container.get('EvolutionOrchestrator')
+
+    @property
+    def prompt_manager(self):
+        return self.container.get('PromptManager')
+
+    @property
+    def master_model(self):
+        """Phase 2.1: Master psychological modeling"""
+        return self.container.get('MasterModelManager')
+
+    @property
+    def income_seeker(self):
+        """Phase 2.2: Income opportunity seeking"""
+        return self.container.get('IncomeSeeker')
+
+    @property
+    def trait_extractor(self):
+        """Phase 5.1: Automatic trait extraction"""
+        return self.container.get('TraitExtractor')
+
+    @property
+    def autonomous_learning(self):
+        """Phase 5.1: Autonomous trait learning"""
+        return self.container.get('AutonomousTraitLearning')
+
+    @property
+    def reflection_analyzer(self):
+        """Phase 5.2: AI-powered reflection analysis"""
+        return self.container.get('ReflectionAnalyzer')
+
+    @property
+    def profitability_reporter(self):
+        """Phase 5.3: Profitability reporting & analysis"""
+        return self.container.get('ProfitabilityReporter')
         
     def process_command(self, command: str, urgent: bool = False) -> str:
         """Main command processing loop"""
-        
+
         # Urgency check
+        urgency_level, reason, skip_dialogue = self.dialogue.check_urgency(command)
+
         if urgent:
             self.scribe.log_action(
                 "Urgent command processing",
                 "Command marked as urgent, proceeding with risk analysis logged",
                 "proceeding"
             )
-            
-        # Mandate check
-        is_allowed, violations = self.mandates.check_action(command)
-        
-        if not is_allowed:
-            return f"Command violates mandates: {', '.join(violations)}"
-            
-        # For non-urgent significant commands, run analysis
-        if not urgent and self.is_significant_command(command):
+
+        # Mandate check (Phase 3.3)
+        is_allowed, violations, status = self.mandates.check_action(command)
+
+        if status == 'catastrophic':
+            response = "🔒 CATASTROPHIC RISK DETECTED - Action blocked. See docs/CATASTROPHIC_RISKS.md"
+            self.scribe.log_action(
+                "Catastrophic risk blocked",
+                f"Command: {command}",
+                "blocked"
+            )
+            return response
+
+        if not is_allowed and violations:
+            if status == 'violations':
+                # Non-catastrophic violations - ask for override
+                confirmed = self.mandates.request_master_override(command, violations, False)
+                if not confirmed:
+                    return "Command cancelled (override not confirmed)"
+
+        # For non-urgent significant commands, run analysis (Phase 3.2)
+        if not skip_dialogue and self.dialogue.requires_dialogue(command, urgency_level):
             understanding, risks, alternatives = self.dialogue.structured_argument(command)
-            
+
             response = f"""
             Analysis of your command:
-            
+
             1. UNDERSTANDING: {understanding}
-            
+
             2. IDENTIFIED RISKS/FLAWS:
             {chr(10).join(f'   - {risk}' for risk in risks)}
-            
+
             3. PROPOSED ALTERNATIVES:
             {chr(10).join(f'   - {alt}' for alt in alternatives)}
-            
+
             Should I proceed with your original command, or would you like to discuss alternatives?
             """
-            
+
             return response
-            
+
         else:
-            # Execute directly for trivial commands
-            return self.execute_command(command)
+            # Execute command and log interaction (Phase 4.3)
+            result = self.execute_command(command)
+            self._log_interaction(command, result, success=True)
+            return result
             
     def is_significant_command(self, command: str) -> bool:
         """Determine if command requires full analysis"""
-        trivial_keywords = ["status", "help", "list", "show", "tell"]
-        significant_keywords = ["create", "delete", "modify", "install", "change"]
-        
+        trivial_keywords = ["status", "help", "list", "show", "tell", "master-profile", 
+                           "master-traits", "income", "opportunities", "tasks", "goals", 
+                           "hierarchy", "reflect"]
+        significant_keywords = ["create", "delete", "modify", "install", "change", "execute"]
+
         if any(word in command.lower() for word in trivial_keywords):
             return False
         if any(word in command.lower() for word in significant_keywords):
             return True
-            
+
         return len(command.split()) > 10  # Long commands get analysis
+
+    def _detect_intent(self, command: str) -> str:
+        """Detect the intent of a command"""
+        lower_cmd = command.lower()
+
+        if "show" in lower_cmd or "get" in lower_cmd or "list" in lower_cmd:
+            return "query"
+        elif "create" in lower_cmd or "add" in lower_cmd:
+            return "creation"
+        elif "delete" in lower_cmd or "remove" in lower_cmd:
+            return "deletion"
+        elif "modify" in lower_cmd or "update" in lower_cmd:
+            return "modification"
+        else:
+            return "other"
+
+    def _log_interaction(self, command: str, response: str, success: bool = True):
+        """Log master interaction to master model (Phase 4.3)"""
+        try:
+            intent = self._detect_intent(command)
+            self.master_model.record_interaction(
+                user_input=command,
+                system_response=response,
+                intent_detected=intent,
+                success=success
+            )
+        except Exception as e:
+            self.scribe.log_action(
+                "Interaction logging failed",
+                reasoning=str(e),
+                outcome="Failed"
+            )
         
     def execute_command(self, command: str) -> str:
         """Execute a command"""
@@ -206,8 +351,13 @@ class Arbiter:
         
         return f"Command executed: {command}"
         
-    def run(self):
-        """Main loop"""
+    def run(self, commands: list[str] | None = None, autoexit: bool = False, timeout: Optional[float] = None):
+        """Main loop
+
+        If `commands` is provided, execute them sequentially. If `autoexit`
+        is True, exit after executing them. If `timeout` is provided and >0,
+        wait that many seconds after executing the commands then exit.
+        """
         print("=" * 60)
         print("AAIA (Autonomous AI Agent) System Initialized")
         print("=" * 60)
@@ -215,424 +365,267 @@ class Arbiter:
         print(f"Directives: {len(self.mandates.mandates)} Prime Mandates Active")
         print("=" * 60)
         print("Type 'exit' to quit, 'help' for commands")
-        
+
+        # Execute provided commands if any
+        if commands:
+            for cmd in commands:
+                try:
+                    print(f"\nMaster: {cmd}")
+                    cl = cmd.strip()
+
+                    # Start watchdog timer that will forcibly exit if the
+                    # command runs longer than `timeout` seconds.
+                    timer = None
+                    if timeout and timeout > 0:
+                        def _kill():
+                            print(f"Command '{cl}' exceeded timeout of {timeout}s — exiting")
+                            os._exit(2)
+                        timer = threading.Timer(timeout, _kill)
+                        timer.daemon = True
+                        timer.start()
+
+                    try:
+                        low = cl.lower()
+                        if low == 'exit':
+                            print('Shutting down...')
+                            if timer:
+                                timer.cancel()
+                            return
+                        elif low == 'help':
+                            print('Type commands interactively; use --cmd to pass commands')
+                            print('\nAvailable Commands:')
+                            print('\n--- Status & Information ---')
+                            print('  status           - Show system status')
+                            print('  tools            - List created tools')
+                            print('  goals            - Show current goals')
+                            print('  tasks            - Show scheduled tasks')
+                            print('  hierarchy        - Show hierarchy of needs')
+                            print('\n--- Master Model (Phase 2-3) ---')
+                            print('  master-profile   - Show master psychological profile')
+                            print('  master-traits    - Show master traits by category')
+                            print('  reflect          - Run master model reflection cycle')
+                            print('\n--- Economics (Phase 2-4) ---')
+                            print('  income           - Show 30-day profitability report')
+                            print('  opportunities    - Show income opportunities (ranked)')
+                            print('\n--- Analysis & Intelligence (Phase 5) ---')
+                            print('  insights         - Generate weekly AI insights')
+                            print('  predictions      - Predict next preferences')
+                            print('  profitability    - Comprehensive profitability analysis')
+                            print('  cost-optimization - Find cost reduction opportunities')
+                            print('  growth-areas     - Identify growth opportunities')
+                            print('\n--- System ---')
+                            print('  help             - Show this help message')
+                            print('  exit             - Shutdown system')
+                        elif low == 'status':
+                            try:
+                                conn = sqlite3.connect(self.scribe.db_path)
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT COUNT(*) FROM action_log")
+                                action_count = cursor.fetchone()[0]
+                                cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
+                                balance_row = cursor.fetchone()
+                                balance = balance_row[0] if balance_row else '100.00'
+                                conn.close()
+                            except Exception:
+                                action_count = 0
+                                balance = '100.00'
+                            current_tier = self.hierarchy_manager.get_current_tier()
+                            print(f"\n=== System Status ===")
+                            print(f"Actions logged: {action_count}")
+                            print(f"Current balance: ${balance}")
+                            print(f"Focus tier: {current_tier['name']} (Tier {current_tier['tier']})")
+                        elif low == 'tools':
+                            tools = self.forge.list_tools()
+                            if not tools:
+                                print("No tools created yet.")
+                            else:
+                                print(f"Registered tools ({len(tools)}):")
+                                for tool in tools:
+                                    print(f"  - {tool['name']}: {tool.get('description','')}")
+                        elif low == 'master-profile':
+                            # Phase 2.1: Show master psychological profile
+                            profile = self.master_model.export_master_profile()
+                            print(profile)
+                        elif low == 'master-traits':
+                            # Phase 2.1: Show master traits
+                            profile = self.master_model.get_master_profile()
+                            print("\n=== Master Psychological Profile ===\n")
+                            for category, traits in profile.items():
+                                if traits:
+                                    print(f"\n{category.replace('_', ' ').title()}:")
+                                    for trait in traits:
+                                        conf_emoji = self.master_model._confidence_emoji(trait['confidence'])
+                                        print(f"  • {trait['name']}: {trait['value']} {conf_emoji}")
+                        elif low == 'income':
+                            # Phase 2.2: Show profitability report
+                            report = self.economics.get_profitability_report(days=30)
+                            print("\n=== Profitability Report (Last 30 Days) ===")
+                            print(f"Total Income: ${report.get('total_income', 0):.2f}")
+                            print(f"Total Costs: ${report.get('total_costs', 0):.2f}")
+                            print(f"Net Profit: ${report.get('net_profit', 0):.2f}")
+                            profit_margin = report.get('profit_margin', 0)
+                            print(f"Profit Margin: {profit_margin:.1f}%")
+                            is_profitable = report.get('is_profitable', False)
+                            status = "✅ PROFITABLE" if is_profitable else "❌ NOT PROFITABLE"
+                            print(f"Status: {status}")
+                        elif low == 'opportunities':
+                            # Phase 2.2: Show income opportunities
+                            opportunities = self.income_seeker.prioritize_opportunities()
+                            if not opportunities:
+                                print("No income opportunities identified yet.")
+                            else:
+                                print("\n=== Income Opportunities (Prioritized) ===\n")
+                                for i, opp in enumerate(opportunities[:5], 1):
+                                    score_percent = opp.get('viability_score', 0) * 100
+                                    print(f"{i}. {opp.get('description', 'Unknown')}")
+                                    print(f"   Type: {opp.get('type', 'Unknown')}")
+                                    print(f"   Value: ${opp.get('estimated_value', 0):.0f}")
+                                    print(f"   Viability: {score_percent:.0f}%")
+                                    print(f"   Effort: {opp.get('effort', 'Unknown')}")
+                                    print()
+                        elif low == 'reflect':
+                            # Phase 2.1: Manual reflection cycle
+                            print("\nRunning master model reflection cycle...")
+                            summary = self.master_model.reflection_cycle()
+                            print(f"Interactions Analyzed: {summary.get('interactions_analyzed', 0)}")
+                            print(f"Traits Updated: {summary.get('traits_updated', 0)}")
+                            if summary.get('insights'):
+                                print(f"Insights: {summary.get('insights')[:200]}...")
+                        elif low == 'insights':
+                            # Phase 5.2: Weekly insights
+                            print("\nGenerating weekly insights...")
+                            profile = self.master_model.get_master_profile()
+                            recent = self.master_model.get_recent_interactions(days=7)
+                            insights = self.reflection_analyzer.generate_weekly_insights(profile, recent)
+
+                            if insights.get('success', False):
+                                print("\n=== Weekly Insights ===\n")
+                                for insight in insights.get('key_insights', []):
+                                    print(f"• {insight}")
+
+                                if insights.get('focus_areas'):
+                                    print(f"\nFocus Areas:")
+                                    for area in insights.get('focus_areas', []):
+                                        print(f"  - {area}")
+
+                                if insights.get('recommendations'):
+                                    print(f"\nRecommendations:")
+                                    for rec in insights.get('recommendations', []):
+                                        print(f"  → {rec}")
+                        elif low == 'predictions':
+                            # Phase 5.2: Predict preferences
+                            print("\nPredicting next preferences...")
+                            profile = self.master_model.get_master_profile()
+                            recent = self.master_model.get_recent_interactions(days=30)
+                            predictions = self.reflection_analyzer.predict_next_preferences(profile, recent)
+
+                            if predictions.get('predictions'):
+                                print("\n=== Predicted Preferences ===\n")
+                                for pred in predictions.get('predictions', []):
+                                    conf_pct = pred.get('confidence', 0) * 100
+                                    print(f"• {pred.get('prediction', 'Unknown')}")
+                                    print(f"  Confidence: {conf_pct:.0f}%")
+                                    print(f"  Reasoning: {pred.get('reasoning', 'N/A')}\n")
+                        elif low == 'profitability':
+                            # Phase 5.3: Comprehensive profitability report
+                            print("\nGenerating comprehensive profitability report...")
+                            report = self.profitability_reporter.generate_comprehensive_report(days=30)
+
+                            if report.get('metrics'):
+                                metrics = report.get('metrics', {})
+                                print("\n=== Profitability Report (30 Days) ===")
+                                print(f"Total Income: ${metrics.get('total_income', 0):.2f}")
+                                print(f"Total Costs: ${metrics.get('total_costs', 0):.2f}")
+                                print(f"Net Profit: ${metrics.get('net_profit', 0):.2f}")
+                                print(f"Profit Margin: {metrics.get('profit_margin', 0):.1f}%")
+                                status = "✅ PROFITABLE" if metrics.get('is_profitable') else "❌ NOT PROFITABLE"
+                                print(f"Status: {status}")
+
+                                # Show alerts
+                                alerts = report.get('alerts', [])
+                                if alerts:
+                                    print(f"\nAlerts:")
+                                    for alert in alerts:
+                                        print(f"  {alert}")
+
+                                # Show trends
+                                trends = report.get('trends', {})
+                                if trends.get('change_percent'):
+                                    change = trends.get('change_percent')
+                                    arrow = "📈" if change > 0 else "📉"
+                                    print(f"\nTrend: {arrow} {change:+.1f}%")
+
+                                # Show recommendations
+                                recs = report.get('recommendations', [])
+                                if recs:
+                                    print(f"\nRecommendations:")
+                                    for rec in recs[:3]:  # Top 3
+                                        print(f"  → {rec}")
+                        elif low == 'cost-optimization':
+                            # Phase 5.3: Cost optimization
+                            print("\nAnalyzing cost optimization opportunities...")
+                            optimizations = self.profitability_reporter.identify_cost_optimization()
+
+                            if optimizations:
+                                print("\n=== Cost Optimization Opportunities ===\n")
+                                for opt in optimizations[:5]:  # Top 5
+                                    savings_pct = opt.get('savings_percentage', 0)
+                                    print(f"• {opt.get('opportunity', 'Unknown')}")
+                                    print(f"  Potential Savings: ${opt.get('potential_savings', 0):.0f} ({savings_pct:.0f}%)")
+                                    print(f"  Implementation: {opt.get('implementation_effort', 'Unknown')}")
+                                    print(f"  Timeline: {opt.get('timeline', 'Unknown')}")
+                                    print()
+                        elif low == 'growth-areas':
+                            # Phase 5.2: Growth area identification
+                            print("\nIdentifying growth areas...")
+                            profile = self.master_model.get_master_profile()
+                            growth_areas = self.reflection_analyzer.identify_growth_areas(profile)
+
+                            if growth_areas:
+                                print("\n=== Growth Opportunities ===\n")
+                                for area in growth_areas[:5]:  # Top 5
+                                    print(f"• {area.get('area', 'Unknown')}")
+                                    print(f"  Current: {area.get('current_state', 'N/A')}")
+                                    print(f"  Potential: {area.get('potential_improvement', 'N/A')}")
+                                    print(f"  Value: {area.get('value', 'N/A')}")
+                                    print(f"  Timeline: {area.get('timeline', 'N/A')}")
+                                    print()
+                        else:
+                            resp = self.process_command(cl)
+                            print(f"Arbiter: {resp}")
+                    finally:
+                        if timer:
+                            timer.cancel()
+                except Exception as e:
+                    print(f"Error executing command '{cmd}': {e}")
+
+            # Post-command behavior
+            if autoexit:
+                print('Auto-exit after commands')
+                return
+
+        # Interactive loop
         while True:
             try:
-                command = input("\nMaster: ").strip()
-                
-                if command.lower() == "exit":
-                    print("Shutting down...")
+                command = input('\nMaster: ').strip()
+                if not command:
+                    continue
+                if command.lower() == 'exit':
+                    print('Shutting down...')
                     break
-                elif command.lower() == "help":
-                    print("Available commands:")
-                    print("  help - Show this help")
-                    print("  status - Show system status")
-                    print("  economics - Show economic status")
-                    print("  log - Show recent actions")
-                    print("  tools - List all created tools")
-                    print("  create tool <name> | <description> - Create tool (AI generates code)")
-                    print("  delete tool <name> - Delete a tool")
-                    print("-" * 40)
-                    print("Autonomous Control:")
-                    print("  auto / autonomous - Toggle autonomous mode")
-                    print("  tasks / scheduler - Show autonomous tasks")
-                    print("  goals - Show current goals")
-                    print("  generate goals - Generate new goals")
-                    print("  hierarchy - Show hierarchy of needs")
-                    print("  next action - Propose next autonomous action")
-                    print("-" * 40)
-                    print("Self-Development:")
-                    print("  diagnose - Run system self-diagnosis")
-                    print("  evolve - Run full evolution pipeline")
-                    print("  evolution status - Show evolution status")
-                    print("  analyze <module> - Analyze a module for improvements")
-                    print("  repair <module> - Attempt to repair a module")
-                    print("  pipeline - Run complete evolution pipeline")
-                    print("-" * 40)
-                    print("Prompt Management:")
-                    print("  prompts - List all available prompts")
-                    print("  prompt list - List prompts by category")
-                    print("  prompt get <name> - Show prompt details")
-                    print("  prompt update <name> - Update a prompt interactively")
-                    print("  prompt optimize <name> - AI-optimize a prompt")
-                    print("-" * 40)
-                    print("Advanced Self-Development:")
-                    print("  reflect - Run meta-cognition reflection")
-                    print("  discover - Discover new capabilities")
-                    print("  predict - Predict master's next commands")
-                    print("  explore - Explore environment")
-                    print("  orchestrate - Run major evolution orchestration")
-                    print("  strategy - Optimize evolution strategy")
-                    print("  master profile - Show master behavior model")
-                    print("  [any other command] - Process command")
-                    continue
-                elif command.lower() == "status":
-                    # Show system status
-                    conn = sqlite3.connect(self.scribe.db_path)
-                    cursor = conn.cursor()
-                    
-                    cursor.execute("SELECT COUNT(*) FROM action_log")
-                    action_count = cursor.fetchone()[0]
-                    
-                    cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
-                    balance_row = cursor.fetchone()
-                    balance = balance_row[0] if balance_row else "100.00"
-                    
-                    conn.close()
-                    
-                    # Get hierarchy info
-                    current_tier = self.hierarchy_manager.get_current_tier()
-                    
-                    print(f"\n=== System Status ===")
-                    print(f"Actions logged: {action_count}")
-                    print(f"Current balance: ${balance}")
-                    print(f"Focus tier: {current_tier['name']} (Tier {current_tier['tier']})")
-                    print(f"Tier progress: {current_tier['progress'] * 100:.1f}%")
-                    print()
-                    print(f"=== Autonomy ===")
-                    print(f"Autonomous mode: {'ENABLED' if self.scheduler.running else 'DISABLED'}")
-                    print(f"Active tasks: {len([t for t in self.scheduler.task_queue if t.get('enabled', True)])}")
-                    print(f"Tools created: {len(self.forge.list_tools())}")
-                    
-                    # Show next proposed action
-                    next_action = self.scheduler.propose_next_action()
-                    print(f"Next proposed action: {next_action}")
-                    
-                    # Show evolution status
-                    evolution_status = self.evolution.get_evolution_status()
-                    print(f"\n=== Evolution ===")
-                    print(f"Status: {evolution_status['state']}")
-                    print(f"Last cycle: {evolution_status['last_cycle']}")
-                    print(f"Progress: {evolution_status['progress']}")
-                    continue
-                elif command.lower() == "economics":
-                    # Show economic status
-                    conn = sqlite3.connect(self.scribe.db_path)
-                    cursor = conn.cursor()
-                    
-                    cursor.execute("SELECT description, amount, balance_after FROM economic_log ORDER BY timestamp DESC LIMIT 10")
-                    transactions = cursor.fetchall()
-                    
-                    print("Recent transactions:")
-                    for desc, amount, balance in transactions:
-                        print(f"  {desc}: ${amount:.6f} (Balance: ${balance:.2f})")
-                    continue
-                elif command.lower() == "log":
-                    # Show recent actions
-                    conn = sqlite3.connect(self.scribe.db_path)
-                    cursor = conn.cursor()
-                    
-                    cursor.execute("SELECT action, reasoning, outcome FROM action_log ORDER BY timestamp DESC LIMIT 5")
-                    actions = cursor.fetchall()
-                    
-                    print("Recent actions:")
-                    for action, reasoning, outcome in actions:
-                        print(f"  Action: {action[:50]}...")
-                        print(f"  Reasoning: {reasoning[:50]}...")
-                        print(f"  Outcome: {outcome}")
-                        print()
-                    continue
-                elif command.lower() == "tools":
-                    # List all available tools
-                    tools = self.forge.list_tools()
-                    if not tools:
-                        print("No tools created yet. Use 'create tool <name> | <description>' to create one.")
-                    else:
-                        print(f"Registered tools ({len(tools)}):")
-                        for tool in tools:
-                            print(f"  - {tool['name']}: {tool['description']}")
-                    continue
-                elif command.lower().startswith("create tool "):
-                    # Create a new tool (AI generates code if not provided)
-                    parts = command[11:].split("|")
-                    if len(parts) < 2:
-                        print("Usage: create tool <name> | <description> [| <code>]")
-                        print("Example: create tool my_tool | This does something useful")
-                        print("Note: If no code is provided, the AI will generate it automatically.")
-                        continue
-                    tool_name = parts[0].strip()
-                    tool_desc = parts[1].strip()
-                    
-                    # Get code if provided (optional)
-                    tool_code = None
-                    if len(parts) > 2 and parts[2].strip():
-                        tool_code = parts[2].strip()
-                    
-                    print(f"Creating tool '{tool_name}'...", flush=True)
-                    if tool_code is None:
-                        print("  Using AI to generate code from description...")
-                    
-                    try:
-                        metadata = self.forge.create_tool(tool_name, tool_desc, tool_code)
-                        print(f"Tool created successfully: {metadata['name']}")
-                    except Exception as e:
-                        print(f"Failed to create tool: {e}")
-                    continue
-                elif command.lower().startswith("delete tool "):
-                    # Delete a tool
-                    tool_name = command[12:].strip()
-                    if self.forge.delete_tool(tool_name):
-                        print(f"Tool deleted: {tool_name}")
-                    else:
-                        print(f"Tool not found: {tool_name}")
-                    continue
-                elif command.lower() in ["auto", "autonomous", "autonomy"]:
-                    # Toggle autonomous mode
-                    if self.scheduler.running:
-                        self.scheduler.stop()
-                        print("Autonomous mode DISABLED")
-                    else:
-                        self.scheduler.start()
-                        print("Autonomous mode ENABLED")
-                    continue
-                elif command.lower() in ["tasks", "scheduler"]:
-                    # Show autonomous tasks
-                    self.show_autonomous_tasks()
-                    continue
-                elif command.lower() == "goals":
-                    # Show current goals
-                    self.show_goals()
-                    continue
-                elif command.lower() == "generate goals":
-                    # Generate new goals
-                    print("Generating autonomous goals...")
-                    goals = self.goals.generate_goals()
-                    for goal in goals:
-                        print(goal)
-                    print(f"Generated {len(goals)} goals")
-                    continue
-                elif command.lower() == "hierarchy":
-                    # Show hierarchy of needs
-                    self.show_hierarchy()
-                    continue
-                elif command.lower() == "next action":
-                    # Propose next autonomous action
-                    action = self.scheduler.propose_next_action()
-                    print(f"Proposed next action: {action}")
-                    continue
-                elif command.lower() == "diagnose":
-                    # Run self-diagnosis
-                    print("Running system self-diagnosis...")
-                    diagnosis = self.diagnosis.perform_full_diagnosis()
-                    print(self.diagnosis.get_diagnosis_summary())
-                    continue
-                elif command.lower() == "evolve":
-                    # Plan and execute evolution cycle
-                    print("Planning evolution cycle...")
-                    plan = self.evolution.plan_evolution_cycle()
-                    print(f"\n=== Evolution Plan ({plan['cycle_id']}) ===")
-                    print(f"Focus Tier: {plan['focus_tier_name']} (Tier {plan['focus_tier']})")
-                    print(f"\nGoals:")
-                    for goal in plan['goals']:
-                        print(f"  • {goal}")
-                    print(f"\nTasks ({len(plan['tasks'])}):")
-                    for i, task in enumerate(plan['tasks'][:5], 1):
-                        print(f"  {i}. {task.get('task', 'Unnamed')} [{task.get('priority', 'medium')}]")
-                    if len(plan['tasks']) > 5:
-                        print(f"  ... and {len(plan['tasks']) - 5} more")
-                    
-                    # Ask to execute
-                    execute = input("\nExecute evolution tasks? (y/n): ").lower()
-                    if execute == 'y':
-                        print("\nExecuting tasks...")
-                        for i, task in enumerate(plan['tasks'][:3]):
-                            print(f"  • {task.get('task', 'Unnamed')}...")
-                            result = self.evolution.execute_evolution_task(task)
-                            if result['success']:
-                                print(f"    ✓ {result['output'][:60]}...")
-                            else:
-                                print(f"    ✗ {result.get('errors', ['Unknown'])[0]}")
-                        print("\nEvolution cycle complete!")
-                    continue
-                elif command.lower() == "evolution status":
-                    # Show evolution status
-                    status = self.evolution.get_evolution_status()
-                    print("\n=== Evolution Status ===")
-                    print(f"State: {status['state']}")
-                    print(f"Last Cycle: {status['last_cycle']}")
-                    print(f"Focus Tier: {status['focus_tier']}")
-                    print(f"Goals: {status['goals']}")
-                    print(f"Tasks: {status['tasks']}")
-                    print(f"Completed: {status['completed_tasks']}")
-                    print(f"Progress: {status['progress']}")
-                    continue
-                elif command.lower().startswith("analyze "):
-                    # Analyze a specific module
-                    module_name = command[8:].strip()
-                    if not module_name:
-                        print("Usage: analyze <module_name>")
-                        print("Example: analyze router")
-                        continue
-                    print(f"Analyzing module: {module_name}...")
-                    analysis = self.diagnosis.analyze_own_code(module_name)
-                    
-                    if "error" in analysis:
-                        print(f"Error analyzing module: {analysis['error']}")
-                    else:
-                        print(f"\n=== Module Analysis: {module_name} ===")
-                        print(f"Lines of code: {analysis['lines_of_code']}")
-                        print(f"Functions: {len(analysis['functions'])}")
-                        if analysis.get('complexities'):
-                            print(f"\nHigh complexity functions:")
-                            for c in analysis['complexities']:
-                                print(f"  • {c['function']}: {c['score']} ({c['suggestion']})")
-                        if analysis.get('improvements'):
-                            print(f"\nAI Suggestions:")
-                            for imp in analysis['improvements'][:5]:
-                                print(f"  {imp}")
-                    continue
-                elif command.lower() == "pipeline":
-                    # Run complete evolution pipeline
-                    print("Running complete evolution pipeline...")
-                    result = self.pipeline.run_autonomous_evolution()
-                    print(f"\nPipeline Result: {result.get('status', 'unknown')}")
-                    if result.get('tasks_executed'):
-                        print(f"Tasks executed: {result.get('tasks_executed')}")
-                    if result.get('test_results'):
-                        tests = result.get('test_results')
-                        print(f"Tests: {tests.get('tests_passed', 0)}/{tests.get('tests_run', 0)} passed")
-                    continue
-                elif command.lower().startswith("repair "):
-                    # Repair a module
-                    module_name = command[7:].strip()
-                    if not module_name:
-                        print("Usage: repair <module_name>")
-                        print("Example: repair router")
-                        continue
-                    self.repair_module(module_name)
-                    continue
-                elif command.lower() == "reflect":
-                    # Run meta-cognition reflection
-                    print("Running meta-cognition reflection...")
-                    reflection = self.metacognition.reflect_on_effectiveness()
-                    print("\n=== Meta-Cognition Reflection ===")
-                    print(f"Timestamp: {reflection.get('timestamp', 'N/A')}")
-                    print("\nImprovements:")
-                    for imp in reflection.get('improvements', []):
-                        print(f"  ✓ {imp}")
-                    print("\nRegressions:")
-                    for reg in reflection.get('regressions', []):
-                        print(f"  ! {reg}")
-                    print("\nInsights:")
-                    for insight in reflection.get('insights', []):
-                        print(f"  • {insight}")
-                    print(f"\nEffectiveness Score: {self.metacognition.get_effectiveness_score()}")
-                    continue
-                elif command.lower() == "discover":
-                    # Discover new capabilities
-                    print("Discovering new capabilities...")
-                    capabilities = self.capability_discovery.discover_new_capabilities()
-                    print(f"\n=== Discovered Capabilities ({len(capabilities)}) ===")
-                    for cap in capabilities[:5]:
-                        if isinstance(cap, dict) and 'name' in cap:
-                            print(f"\n• {cap.get('name', 'Unknown')}")
-                            print(f"  Description: {cap.get('description', 'N/A')}")
-                            print(f"  Value: {cap.get('value', 'N/A')}/10 | Complexity: {cap.get('complexity', 'N/A')}/10")
-                            print(f"  Dependencies: {', '.join(cap.get('dependencies', [])) or 'None'}")
-                    continue
-                elif command.lower() == "predict":
-                    # Predict master's next commands
-                    print("Predicting master's next commands...")
-                    predictions = self.intent_predictor.predict_next_commands()
-                    print("\n=== Command Predictions ===")
-                    for i, pred in enumerate(predictions[:3], 1):
-                        if isinstance(pred, dict):
-                            print(f"\n{i}. {pred.get('command', 'Unknown')}")
-                            print(f"   Confidence: {pred.get('confidence', 0):.2f}")
-                            print(f"   Rationale: {pred.get('rationale', 'N/A')}")
-                    continue
-                elif command.lower() == "explore":
-                    # Explore environment
-                    print("Exploring environment...")
-                    exploration = self.environment_explorer.explore_environment()
-                    print("\n=== Environment Exploration ===")
-                    print(f"Platform: {exploration.get('system_info', {}).get('platform', 'Unknown')}")
-                    print(f"Containerized: {exploration.get('system_info', {}).get('containerized', False)}")
-                    print(f"Available Commands: {len(exploration.get('available_commands', []))}")
-                    resources = exploration.get('resource_availability', {})
-                    print(f"Memory Available: {resources.get('memory_available_gb', 'N/A')} GB")
-                    print(f"Disk Free: {resources.get('disk_free_gb', 'N/A')} GB")
-                    print(f"Network: {'Available' if exploration.get('network_capabilities', {}).get('external_http') else 'Limited'}")
-                    
-                    # Show opportunities
-                    opportunities = self.environment_explorer.find_development_opportunities()
-                    if opportunities:
-                        print("\n=== Development Opportunities ===")
-                        for opp in opportunities[:3]:
-                            print(f"• {opp.get('type', 'Unknown')}: {opp.get('value', '')}")
-                    continue
-                elif command.lower() == "orchestrate":
-                    # Run major evolution orchestration
-                    print("Running major evolution orchestration...")
-                    result = self.orchestrator.orchestrate_major_evolution()
-                    print(f"\n=== Evolution Complete ===")
-                    print(f"Overall Status: {result.get('overall_status', 'unknown')}")
-                    print(f"Phases Completed: {len(result.get('phases', {}))}")
-                    continue
-                elif command.lower() == "strategy":
-                    # Optimize evolution strategy
-                    print("Optimizing evolution strategy...")
-                    optimization = self.strategy_optimizer.optimize_evolution_strategy()
-                    print("\n=== Strategy Optimization ===")
-                    print("Adopt:")
-                    for item in optimization.get('adopt', [])[:3]:
-                        print(f"  ✓ {item.get('element', 'N/A')}: {item.get('value', 'N/A')}")
-                    print("Avoid:")
-                    for item in optimization.get('avoid', [])[:3]:
-                        print(f"  ✗ {item.get('element', 'N/A')}")
-                    print("\nExperiment with:")
-                    for exp in optimization.get('experiment_with', [])[:3]:
-                        print(f"  • {exp}")
-                    print(f"\nRecommended: {optimization.get('recommended_approach', 'N/A')}")
-                    continue
-                elif command.lower() == "master profile":
-                    # Show master behavior model
-                    profile = self.intent_predictor.get_master_profile()
-                    print("\n=== Master Behavior Profile ===")
-                    print(f"Total Interactions: {profile.get('total_interactions', 0)}")
-                    print(f"Model Confidence: {profile.get('model_confidence', 0):.2f}")
-                    print("\nTraits:")
-                    for trait, data in profile.get('traits', {}).items():
-                        print(f"  • {trait}: {data.get('value', 'unknown')} (confidence: {data.get('confidence', 0):.2f})")
-                    continue
-                elif command.lower() == "prompts":
-                    # List all prompts
-                    self.show_prompts()
-                    continue
-                elif command.lower().startswith("prompt get "):
-                    # Get a specific prompt
-                    prompt_name = command[11:].strip()
-                    self.show_prompt_detail(prompt_name)
-                    continue
-                elif command.lower().startswith("prompt update "):
-                    # Update a prompt
-                    prompt_name = command[13:].strip()
-                    self.update_prompt(prompt_name)
-                    continue
-                elif command.lower().startswith("prompt optimize "):
-                    # Optimize a prompt
-                    prompt_name = command[16:].strip()
-                    self.optimize_prompt(prompt_name)
-                    continue
-                elif command.lower() == "prompt list":
-                    # List prompts by category
-                    self.show_prompts_by_category()
-                    continue
-                    
-                # Process regular command
-                response = self.process_command(command)
-                print(f"\nArbiter: {response}")
-                
+                # reuse the big interactive body by delegating to process_command
+                try:
+                    resp = self.process_command(command)
+                    print(f"\nArbiter: {resp}")
+                except Exception as e:
+                    print(f"Error: {e}")
+                    self.scribe.log_action('System error', f"Error processing command: {str(e)}", 'error')
             except KeyboardInterrupt:
-                print("\nShutting down...")
+                print('\nShutting down...')
                 break
-            except Exception as e:
-                print(f"Error: {e}")
-                self.scribe.log_action(
-                    "System error",
-                    f"Error processing command: {str(e)}",
-                    "error"
-                )
+                    
+                    
+                
 
     def show_autonomous_tasks(self):
         """Show scheduled autonomous tasks"""
@@ -956,5 +949,86 @@ Evolution Commands:
             print(f"Optimization failed: {e}")
 
 if __name__ == "__main__":
+    # Parse CLI args for modes and batch commands
+    parser = argparse.ArgumentParser(description='AAIA entrypoint')
+    parser.add_argument('--interactive', '-i', action='store_true', help='Run in interactive mode (type commands)')
+    parser.add_argument('--autonomous', '-a', action='store_true', help='Run in autonomous mode (start scheduler)')
+    parser.add_argument('--cmd', '-c', action='append', help='Command to execute (can be repeated)')
+    parser.add_argument('--cmd-file', help='File with commands, one per line')
+    parser.add_argument('--autoexit', '-e', action='store_true', help='Exit after executing provided commands')
+    parser.add_argument('--timeout', '-t', type=float, default=0.0, help='Per-command timeout in seconds (0 = disabled)')
+    args = parser.parse_args()
+
+    # Mode selection: interactive, autonomous, or batch (--cmd/--cmd-file)
+    selected_mode = None
+    if args.interactive:
+        selected_mode = 'interactive'
+    if args.autonomous:
+        if selected_mode:
+            print('Cannot combine --interactive and --autonomous')
+            parser.print_help()
+            raise SystemExit(2)
+        selected_mode = 'autonomous'
+    if args.cmd or args.cmd_file:
+        if selected_mode:
+            print('Cannot combine mode flags with --cmd/--cmd-file')
+            parser.print_help()
+            raise SystemExit(2)
+        selected_mode = 'batch'
+
+    if not selected_mode:
+        # No mode provided - show help and exit
+        parser.print_help()
+        raise SystemExit(0)
+
+    # Prepare commands for batch mode
+    commands = []
+    if args.cmd:
+        commands.extend(args.cmd)
+    if args.cmd_file:
+        try:
+            with open(args.cmd_file, 'r') as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if not ln or ln.startswith('#'):
+                        continue
+                    commands.append(ln)
+        except Exception as e:
+            print(f"Failed to read cmd-file {args.cmd_file}: {e}")
+            raise
+
     arbiter = Arbiter()
-    arbiter.run()
+
+    if selected_mode == 'interactive':
+        arbiter.run(commands=None, autoexit=False, timeout=None)
+    elif selected_mode == 'autonomous':
+        # Start autonomous scheduler and run until interrupted or optional timeout
+        def _run_autonomous():
+            try:
+                if not arbiter.scheduler.running:
+                    arbiter.scheduler.start()
+                    print('Autonomous scheduler started')
+                # Wait until interrupted
+                if args.timeout and args.timeout > 0:
+                    try:
+                        time.sleep(args.timeout)
+                    except KeyboardInterrupt:
+                        pass
+                    print('Autonomous timeout reached, stopping')
+                else:
+                    try:
+                        while True:
+                            time.sleep(1)
+                    except KeyboardInterrupt:
+                        pass
+            finally:
+                try:
+                    if arbiter.scheduler.running:
+                        arbiter.scheduler.stop()
+                        print('Autonomous scheduler stopped')
+                except Exception:
+                    pass
+
+        _run_autonomous()
+    else:  # batch
+        arbiter.run(commands=commands or None, autoexit=args.autoexit, timeout=(args.timeout if args.timeout > 0 else None))
