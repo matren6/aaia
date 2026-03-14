@@ -35,3 +35,5 @@ credentials/
 # Configuration backups
 *.backup.*
 configuration.nix.backup.*
+/.vs/slnx.sqlite
+/.vs/slnx.sqlite
