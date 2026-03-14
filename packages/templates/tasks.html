@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Scheduler Tasks - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">Autonomous Scheduler</h1>
+        <p class="text-muted">Manage scheduler tasks and execution</p>
+    </div>
+</div>
+
+<!-- Next Proposed Action -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info alert-dismissible fade show">
+            <strong>Next Proposed Action:</strong>
+            <div id="nextAction">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tasks List -->
+<div class="row" id="tasksContainer">
+    <!-- Tasks will be loaded here -->
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    class TasksPage {
+        constructor() {
+            this.tasks = [];
+            this.init();
+        }
+
+        init() {
+            this.loadTasks();
+            this.setupWebSocketUpdates();
+            setInterval(() => this.updateCountdowns(), 1000);
+        }
+
+        setupWebSocketUpdates() {
+            if (!wsClient) return;
+            wsClient.on('scheduler_task_started', () => this.loadTasks());
+            wsClient.on('scheduler_task_completed', () => this.loadTasks());
+        }
+
+        async loadTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.tasks = data.tasks || [];
+                    this.displayTasks();
+                    this.displayNextAction(data.next_proposed_action);
+                }
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+
+        displayNextAction(action) {
+            const actionDiv = document.getElementById('nextAction');
+            if (action) {
+                actionDiv.textContent = action;
+            } else if (this.tasks.length > 0) {
+                const nextTask = this.tasks.find(t => t.enabled);
+                if (nextTask) {
+                    actionDiv.textContent = `Run ${nextTask.name} (in ${this.formatTimeUntil(nextTask.next_run)})`;
+                }
+            } else {
+                actionDiv.textContent = 'No tasks configured';
+            }
+        }
+
+        displayTasks() {
+            const container = document.getElementById('tasksContainer');
+            if (this.tasks.length === 0) {
+                container.innerHTML = '<div class="col-12"><p class="text-muted">No tasks configured</p></div>';
+                return;
+            }
+
+            const html = this.tasks.map((task, idx) => this.renderTaskCard(task, idx)).join('');
+            container.innerHTML = html;
+        }
+
+        renderTaskCard(task, idx) {
+            const status = task.enabled ? 'active' : 'paused';
+            const statusBadge = task.enabled 
+                ? '<span class="badge bg-success">● ACTIVE</span>'
+                : '<span class="badge bg-secondary">○ PAUSED</span>';
+
+            const lastRun = task.last_run ? new Date(task.last_run).toLocaleTimeString() : 'Never';
+            const nextRun = task.next_run ? this.formatTimeUntil(task.next_run) : 'N/A';
+
+            return `
+                <div class="col-md-6 mb-3">
+                    <div class="card task-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">${task.name || task.id}</h5>
+                                ${statusBadge}
+                            </div>
+
+                            <small class="text-muted d-block mb-2">
+                                Priority: <strong>${task.priority || 'normal'}</strong> | 
+                                Interval: <strong>${task.interval_minutes || '?'} min</strong>
+                            </small>
+
+                            <div class="mb-3">
+                                <div class="row small text-muted">
+                                    <div class="col-12">
+                                        Last run: <strong>${lastRun}</strong>
+                                    </div>
+                                    <div class="col-12">
+                                        Next run: <strong id="next-${idx}">${nextRun}</strong>
+                                    </div>
+                                    <div class="col-12">
+                                        Executions: <strong>${task.execution_count || 0}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                ${task.enabled ? `
+                                    <button class="btn btn-warning flex-grow-1" 
+                                            onclick="tasksPage.toggleTask('${task.id}', false)">
+                                        <i class="bi bi-pause"></i> Pause
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-success flex-grow-1" 
+                                            onclick="tasksPage.toggleTask('${task.id}', true)">
+                                        <i class="bi bi-play"></i> Resume
+                                    </button>
+                                `}
+                                <button class="btn btn-outline-primary flex-grow-1" 
+                                        onclick="tasksPage.triggerTask('${task.id}')">
+                                    <i class="bi bi-lightning"></i> Trigger
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        updateCountdowns() {
+            this.tasks.forEach((task, idx) => {
+                const element = document.getElementById(`next-${idx}`);
+                if (element && task.next_run) {
+                    element.textContent = this.formatTimeUntil(task.next_run);
+                }
+            });
+        }
+
+        formatTimeUntil(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = date - now;
+
+            if (diff < 0) return 'overdue';
+
+            const seconds = Math.floor(diff / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (days > 0) return `in ${days}d ${hours % 24}h`;
+            if (hours > 0) return `in ${hours}h ${minutes % 60}m`;
+            if (minutes > 0) return `in ${minutes}m ${seconds % 60}s`;
+            return `in ${seconds}s`;
+        }
+
+        async toggleTask(taskId, enabled) {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/toggle`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                
+                if (response.ok) {
+                    this.loadTasks();
+                }
+            } catch (error) {
+                console.error('Error toggling task:', error);
+            }
+        }
+
+        async triggerTask(taskId) {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/trigger`, { method: 'POST' });
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`Task triggered: ${data.message}`);
+                    this.loadTasks();
+                }
+            } catch (error) {
+                console.error('Error triggering task:', error);
+                alert('Failed to trigger task');
+            }
+        }
+    }
+
+    let tasksPage = null;
+    document.addEventListener('DOMContentLoaded', () => {
+        tasksPage = new TasksPage();
+    });
+</script>
+{% endblock %}

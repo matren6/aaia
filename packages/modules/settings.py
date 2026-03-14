@@ -252,6 +252,19 @@ class MonitoringConfig:
 
 
 @dataclass
+class WebServerConfig:
+    """Web server configuration for dashboard and API."""
+    enabled: bool = True
+    host: str = "0.0.0.0"
+    port: int = 5000
+    debug: bool = False
+    secret_key: str = "change-me-in-production"
+    auth_enabled: bool = False
+    auth_username: str = "master"
+    auth_password: str = "changeme"
+
+
+@dataclass
 class SystemConfig:
     """Main system configuration combining all sub-configs."""
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
@@ -263,6 +276,7 @@ class SystemConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
+    web_server: WebServerConfig = field(default_factory=WebServerConfig)
     
     @classmethod
     def from_env(cls):
@@ -353,6 +367,16 @@ class SystemConfig:
                 format=os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
                 file_enabled=os.getenv("LOG_FILE_ENABLED", "true").lower() == "true",
                 console_enabled=os.getenv("LOG_CONSOLE_ENABLED", "true").lower() == "true"
+            ),
+            web_server=WebServerConfig(
+                enabled=os.getenv("WEB_SERVER_ENABLED", "true").lower() == "true",
+                host=os.getenv("WEB_SERVER_HOST", "0.0.0.0"),
+                port=int(os.getenv("WEB_SERVER_PORT", "5000")),
+                debug=os.getenv("WEB_SERVER_DEBUG", "false").lower() == "true",
+                secret_key=os.getenv("WEB_SERVER_SECRET_KEY", "change-me-in-production"),
+                auth_enabled=os.getenv("WEB_SERVER_AUTH_ENABLED", "false").lower() == "true",
+                auth_username=os.getenv("WEB_SERVER_AUTH_USERNAME", "master"),
+                auth_password=os.getenv("WEB_SERVER_AUTH_PASSWORD", "changeme")
             )
         )
     

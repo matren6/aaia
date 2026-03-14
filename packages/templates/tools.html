@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Tools Registry - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="display-6">Tools Registry</h1>
+                <p class="text-muted">Registered tools and utilities</p>
+            </div>
+            <div>
+                <strong id="toolCount">0</strong> Tools
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tools Grid -->
+<div class="row" id="toolsContainer">
+    <div class="col-12">
+        <p class="text-muted text-center py-5">Loading tools...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    class ToolsPage {
+        constructor() {
+            this.tools = [];
+            this.init();
+        }
+
+        init() {
+            this.loadTools();
+        }
+
+        async loadTools() {
+            try {
+                const response = await fetch('/api/tools');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.tools = data.tools || [];
+                    this.displayTools();
+                }
+            } catch (error) {
+                console.error('Error loading tools:', error);
+            }
+        }
+
+        displayTools() {
+            document.getElementById('toolCount').textContent = this.tools.length;
+
+            if (this.tools.length === 0) {
+                document.getElementById('toolsContainer').innerHTML = 
+                    '<div class="col-12"><p class="text-muted text-center">No tools registered</p></div>';
+                return;
+            }
+
+            const html = this.tools.map(tool => this.renderToolCard(tool)).join('');
+            document.getElementById('toolsContainer').innerHTML = html;
+        }
+
+        renderToolCard(tool) {
+            const createdDate = tool.created_at ? new Date(tool.created_at).toLocaleDateString() : 'Unknown';
+            const lastUsed = tool.last_used ? new Date(tool.last_used).toLocaleString() : 'Never';
+
+            return `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 tool-card">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start mb-2">
+                                <div>
+                                    <h5 class="card-title mb-0">
+                                        <i class="bi bi-tools"></i> ${tool.name}
+                                    </h5>
+                                </div>
+                            </div>
+
+                            <p class="card-text small text-muted mb-3">
+                                ${tool.description || 'No description available'}
+                            </p>
+
+                            <div class="small text-muted mb-3">
+                                <div class="mb-1">
+                                    <strong>Created:</strong> ${createdDate}
+                                </div>
+                                <div class="mb-1">
+                                    <strong>Usage:</strong> ${tool.usage_count || 0} times
+                                </div>
+                                <div>
+                                    <strong>Last Used:</strong> ${lastUsed}
+                                </div>
+                            </div>
+
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <button class="btn btn-outline-primary flex-grow-1" 
+                                        onclick="toolsPage.viewDetails('${tool.name}')">
+                                    <i class="bi bi-eye"></i> Details
+                                </button>
+                                <button class="btn btn-outline-danger flex-grow-1" 
+                                        onclick="toolsPage.deleteTool('${tool.name}')">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        viewDetails(toolName) {
+            alert(`Tool Details: ${toolName}\n\nFull details view - Not yet implemented`);
+        }
+
+        async deleteTool(toolName) {
+            if (!confirm(`Are you sure you want to delete "${toolName}"?`)) return;
+
+            try {
+                const response = await fetch(`/api/tools/${toolName}`, { method: 'DELETE' });
+                if (response.ok) {
+                    this.loadTools();
+                    alert(`Tool "${toolName}" deleted successfully`);
+                } else {
+                    alert('Failed to delete tool');
+                }
+            } catch (error) {
+                console.error('Error deleting tool:', error);
+                alert('Error deleting tool');
+            }
+        }
+    }
+
+    let toolsPage = null;
+    document.addEventListener('DOMContentLoaded', () => {
+        toolsPage = new ToolsPage();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">System Configuration</h1>
+        <p class="text-muted">View and manage runtime settings</p>
+    </div>
+</div>
+
+<!-- Warning Alert -->
+<div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>⚠️ Important:</strong> Changes made here are <strong>in-memory only</strong> and will be lost on restart.
+    Edit the <code>.env</code> file for persistent configuration changes.
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
+<!-- Configuration Sections -->
+<div class="row mb-4" id="configContainer">
+    <!-- Config sections will be loaded here -->
+</div>
+
+<!-- Action Buttons -->
+<div class="row mt-4">
+    <div class="col-12">
+        <button class="btn btn-primary" id="saveBtn">
+            <i class="bi bi-check"></i> Save Changes
+        </button>
+        <button class="btn btn-outline-secondary" id="resetBtn">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset to Defaults
+        </button>
+        <button class="btn btn-outline-info" id="exportBtn">
+            <i class="bi bi-download"></i> Export Config (JSON)
+        </button>
+        <button class="btn btn-outline-info" id="importBtn">
+            <i class="bi bi-upload"></i> Import Config
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    class ConfigPage {
+        constructor() {
+            this.config = null;
+            this.originalConfig = null;
+            this.init();
+        }
+
+        init() {
+            this.loadConfig();
+            document.getElementById('saveBtn').addEventListener('click', () => this.saveChanges());
+            document.getElementById('resetBtn').addEventListener('click', () => this.resetToDefaults());
+            document.getElementById('exportBtn').addEventListener('click', () => this.exportConfig());
+            document.getElementById('importBtn').addEventListener('click', () => this.importConfig());
+        }
+
+        async loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                if (response.ok) {
+                    this.config = await response.json();
+                    this.originalConfig = JSON.parse(JSON.stringify(this.config));
+                    this.displayConfig();
+                }
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        displayConfig() {
+            if (!this.config) return;
+
+            const container = document.getElementById('configContainer');
+            let html = '';
+
+            for (const [section, settings] of Object.entries(this.config)) {
+                html += `
+                    <div class="col-12 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5 class="mb-0">${this.formatSectionName(section)}</h5>
+                            </div>
+                            <div class="card-body">
+                                ${this.renderSettings(section, settings)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        renderSettings(section, settings) {
+            if (typeof settings !== 'object' || settings === null) {
+                return `<p class="text-muted">No settings</p>`;
+            }
+
+            let html = '<div class="row">';
+            for (const [key, value] of Object.entries(settings)) {
+                const inputId = `${section}_${key}`;
+                const isEditable = this.isEditable(section, key);
+
+                html += `
+                    <div class="col-md-6 mb-3">
+                        <label for="${inputId}" class="form-label">${this.formatKeyName(key)}:</label>
+                        ${isEditable ? `
+                            <input type="text" class="form-control" id="${inputId}" 
+                                   value="${this.formatValue(value)}"
+                                   data-section="${section}" data-key="${key}">
+                        ` : `
+                            <input type="text" class="form-control" value="${this.formatValue(value)}" readonly>
+                            <small class="text-muted d-block mt-1">🔒 Read-only</small>
+                        `}
+                    </div>
+                `;
+            }
+            html += '</div>';
+            return html;
+        }
+
+        isEditable(section, key) {
+            const readOnlyFields = ['initial_balance'];
+            return !readOnlyFields.includes(key);
+        }
+
+        formatSectionName(name) {
+            return name
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        formatKeyName(name) {
+            return name
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        formatValue(value) {
+            if (typeof value === 'boolean') return value ? 'true' : 'false';
+            if (typeof value === 'number') return value.toString();
+            return String(value);
+        }
+
+        async saveChanges() {
+            const btn = document.getElementById('saveBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+
+            try {
+                // Collect changes
+                const changes = {};
+                document.querySelectorAll('[data-section][data-key]').forEach(input => {
+                    const newValue = input.value;
+                    const section = input.dataset.section;
+                    const key = input.dataset.key;
+                    const oldValue = this.getNestedValue(this.originalConfig, [section, key]);
+
+                    if (newValue !== this.formatValue(oldValue)) {
+                        if (!changes[section]) changes[section] = {};
+                        changes[section][key] = newValue;
+                    }
+                });
+
+                if (Object.keys(changes).length === 0) {
+                    alert('No changes to save');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                    return;
+                }
+
+                // Save each change
+                for (const [section, settings] of Object.entries(changes)) {
+                    for (const [key, value] of Object.entries(settings)) {
+                        const path = `${section}.${key}`;
+                        const response = await fetch(`/api/config/${path}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ value })
+                        });
+                        if (!response.ok) {
+                            throw new Error(`Failed to update ${path}`);
+                        }
+                    }
+                }
+
+                alert('Configuration saved successfully');
+                this.loadConfig();
+            } catch (error) {
+                console.error('Error saving config:', error);
+                alert('Failed to save configuration');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        async resetToDefaults() {
+            if (!confirm('Are you sure? This will reset all settings to defaults.')) return;
+            this.loadConfig();
+        }
+
+        exportConfig() {
+            const json = JSON.stringify(this.config, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `config-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        importConfig() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        this.config = imported;
+                        this.displayConfig();
+                        alert('Configuration imported. Click "Save Changes" to apply.');
+                    } catch (error) {
+                        alert('Invalid JSON file');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        getNestedValue(obj, path) {
+            return path.reduce((current, key) => current?.[key], obj);
+        }
+    }
+
+    let configPage = null;
+    document.addEventListener('DOMContentLoaded', () => {
+        configPage = new ConfigPage();
+    });
+</script>
+{% endblock %}

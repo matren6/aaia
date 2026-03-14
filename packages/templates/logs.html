@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}System Logs - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">System Logs</h1>
+        <p class="text-muted">View and filter action logs</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <label for="dateRange" class="form-label">Date Range:</label>
+        <select id="dateRange" class="form-select">
+            <option value="1">Last 24 Hours</option>
+            <option value="7" selected>Last 7 Days</option>
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label for="statusFilter" class="form-label">Status:</label>
+        <select id="statusFilter" class="form-select">
+            <option value="">All</option>
+            <option value="success">Success</option>
+            <option value="pending">Pending</option>
+            <option value="error">Error</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label for="searchBox" class="form-label">Search:</label>
+        <input type="text" id="searchBox" class="form-control" placeholder="Search logs...">
+    </div>
+    <div class="col-md-2 d-flex align-items-end gap-2">
+        <button class="btn btn-primary flex-grow-1" id="applyFiltersBtn">Apply</button>
+        <button class="btn btn-outline-secondary" id="exportBtn" title="Export as CSV">
+            <i class="bi bi-download"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Logs Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="logsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                            <th>Status</th>
+                            <th>Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsBody">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">Loading logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted" id="logCount">Page 1 of 1</small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item" id="prevBtn" style="display:none;">
+                            <a class="page-link" href="#" onclick="logsPage.previousPage(); return false;">Previous</a>
+                        </li>
+                        <li class="page-item" id="nextBtn" style="display:none;">
+                            <a class="page-link" href="#" onclick="logsPage.nextPage(); return false;">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    class LogsPage {
+        constructor() {
+            this.currentPage = 0;
+            this.pageSize = 50;
+            this.totalLogs = 0;
+            this.logs = [];
+            this.init();
+        }
+
+        init() {
+            this.loadLogs();
+            document.getElementById('applyFiltersBtn').addEventListener('click', () => {
+                this.currentPage = 0;
+                this.loadLogs();
+            });
+            document.getElementById('exportBtn').addEventListener('click', () => this.exportLogs());
+            this.setupWebSocketUpdates();
+        }
+
+        setupWebSocketUpdates() {
+            if (!wsClient) return;
+            wsClient.on('event_feed', () => this.loadLogs());
+        }
+
+        getFilters() {
+            const dayRange = parseInt(document.getElementById('dateRange').value);
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - dayRange);
+
+            return {
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: new Date().toISOString().split('T')[0],
+                status: document.getElementById('statusFilter').value,
+                search: document.getElementById('searchBox').value
+            };
+        }
+
+        async loadLogs() {
+            try {
+                const filters = this.getFilters();
+                const offset = this.currentPage * this.pageSize;
+                
+                let query = `/api/logs?limit=${this.pageSize}&offset=${offset}`;
+                if (filters.status) query += `&status=${filters.status}`;
+
+                const response = await fetch(query);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.logs = data.logs || [];
+                    this.totalLogs = data.total || 0;
+                    this.displayLogs();
+                    this.updatePagination();
+                }
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        displayLogs() {
+            if (this.logs.length === 0) {
+                document.getElementById('logsBody').innerHTML = 
+                    '<tr><td colspan="5" class="text-center text-muted py-4">No logs found</td></tr>';
+                return;
+            }
+
+            const search = document.getElementById('searchBox').value.toLowerCase();
+            const filtered = this.logs.filter(log => {
+                if (search) {
+                    const text = JSON.stringify(log).toLowerCase();
+                    return text.includes(search);
+                }
+                return true;
+            });
+
+            const html = filtered.map(log => this.renderLogRow(log)).join('');
+            document.getElementById('logsBody').innerHTML = html;
+        }
+
+        renderLogRow(log) {
+            const time = new Date(log.timestamp).toLocaleTimeString();
+            const action = log.action || 'Unknown';
+            const details = log.details || log.data?.reason || '-';
+            const status = log.status || 'unknown';
+            const statusIcon = {
+                'success': '✅',
+                'pending': '⏳',
+                'error': '❌'
+            }[status] || '⚪';
+            const cost = log.cost ? `$${log.cost.toFixed(2)}` : '$0.00';
+
+            return `
+                <tr>
+                    <td><small>${time}</small></td>
+                    <td><strong>${action}</strong></td>
+                    <td><small class="text-muted">${details}</small></td>
+                    <td><small>${statusIcon} ${status}</small></td>
+                    <td><small>${cost}</small></td>
+                </tr>
+            `;
+        }
+
+        updatePagination() {
+            const totalPages = Math.ceil(this.totalLogs / this.pageSize);
+            document.getElementById('logCount').textContent = 
+                `Page ${this.currentPage + 1} of ${totalPages} (${this.totalLogs} total)`;
+
+            document.getElementById('prevBtn').style.display = this.currentPage > 0 ? 'block' : 'none';
+            document.getElementById('nextBtn').style.display = 
+                this.currentPage < totalPages - 1 ? 'block' : 'none';
+        }
+
+        previousPage() {
+            if (this.currentPage > 0) {
+                this.currentPage--;
+                this.loadLogs();
+            }
+        }
+
+        nextPage() {
+            const totalPages = Math.ceil(this.totalLogs / this.pageSize);
+            if (this.currentPage < totalPages - 1) {
+                this.currentPage++;
+                this.loadLogs();
+            }
+        }
+
+        exportLogs() {
+            if (this.logs.length === 0) {
+                alert('No logs to export');
+                return;
+            }
+
+            const csv = this.logsToCSV(this.logs);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        logsToCSV(logs) {
+            const headers = ['Timestamp', 'Action', 'Details', 'Status', 'Cost'];
+            const rows = logs.map(log => [
+                new Date(log.timestamp).toISOString(),
+                log.action || '',
+                log.details || '',
+                log.status || '',
+                log.cost || 0
+            ]);
+
+            const csv = [headers, ...rows]
+                .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            return csv;
+        }
+    }
+
+    let logsPage = null;
+    document.addEventListener('DOMContentLoaded', () => {
+        logsPage = new LogsPage();
+    });
+</script>
+{% endblock %}

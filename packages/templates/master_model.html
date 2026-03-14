@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block title %}Master Model - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">Master Psychological Profile</h1>
+        <p class="text-muted">AI's understanding of your preferences and communication style</p>
+    </div>
+</div>
+
+<!-- Profile Overview -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Profile Confidence</h6>
+                <h2 id="confidence" class="mb-0">0%</h2>
+                <div id="confidenceIndicator" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Interactions</h6>
+                <h2 id="interactionCount" class="mb-0">0</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-center">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Last Reflection</h6>
+                <p id="lastReflection" class="mb-0 small">Never</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <button class="btn btn-primary w-100 h-100" id="reflectBtn">
+            <i class="bi bi-lightning"></i> Trigger Reflection
+        </button>
+    </div>
+</div>
+
+<!-- Profile Traits - Organized by Category -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Communication Style</h5>
+            </div>
+            <div class="card-body" id="communicationTraits">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">Work Preferences</h5>
+            </div>
+            <div class="card-body" id="workTraits">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Technical Preferences</h5>
+            </div>
+            <div class="card-body" id="technicalTraits">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Personality Traits</h5>
+            </div>
+            <div class="card-body" id="personalityTraits">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Interactions Timeline -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Interactions</h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="viewHistoryBtn">View All</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="interactionsList" style="max-height: 400px; overflow-y: auto;">
+                    <p class="text-muted">Loading interactions...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reflection Insights -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Latest Reflection Insights</h5>
+            </div>
+            <div class="card-body">
+                <div id="reflectionInsights" class="alert alert-info">
+                    <p class="mb-0">No reflections performed yet. Click "Trigger Reflection" to analyze interactions.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    class MasterModelPage {
+        constructor() {
+            this.profile = null;
+            this.init();
+        }
+
+        init() {
+            this.loadProfile();
+            document.getElementById('reflectBtn').addEventListener('click', () => this.triggerReflection());
+            document.getElementById('viewHistoryBtn').addEventListener('click', () => this.viewInteractionHistory());
+        }
+
+        async loadProfile() {
+            try {
+                const response = await fetch('/api/master-model/profile');
+                if (response.ok) {
+                    this.profile = await response.json();
+                    this.displayProfile();
+                    this.loadInteractions();
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        }
+
+        displayProfile() {
+            if (!this.profile) return;
+
+            // Display confidence
+            const confidence = Math.round((this.profile.confidence || 0) * 100);
+            document.getElementById('confidence').textContent = confidence + '%';
+            const indicator = confidence > 80 ? '🟢' : confidence > 50 ? '🟡' : '🔴';
+            document.getElementById('confidenceIndicator').textContent = indicator;
+
+            // Display interaction count
+            document.getElementById('interactionCount').textContent = this.profile.interaction_count || 0;
+
+            // Display last reflection
+            if (this.profile.last_reflection) {
+                const date = new Date(this.profile.last_reflection);
+                document.getElementById('lastReflection').textContent = this.timeAgo(date);
+            }
+
+            // Display traits
+            this.displayTraits();
+        }
+
+        displayTraits() {
+            const categories = {
+                'Communication Style': 'communicationTraits',
+                'Work Preferences': 'workTraits',
+                'Technical Preferences': 'technicalTraits',
+                'Personality Traits': 'personalityTraits'
+            };
+
+            Object.entries(categories).forEach(([category, elementId]) => {
+                const traits = this.profile.profile?.[category] || this.profile.profile?.[category.toLowerCase().replace(/ /g, '_')] || [];
+                const html = Array.isArray(traits) ? traits.map(t => this.renderTrait(t)).join('') : 
+                    Object.entries(traits).map(([k, v]) => this.renderTrait(v)).join('');
+                document.getElementById(elementId).innerHTML = html || '<p class="text-muted">No data</p>';
+            });
+        }
+
+        renderTrait(trait) {
+            if (typeof trait === 'string') {
+                return `<div class="mb-2"><small>• ${trait}</small></div>`;
+            }
+
+            const name = trait.name || trait;
+            const confidence = trait.confidence || 0;
+            const confPercentage = Math.round(confidence * 100);
+            const indicator = confPercentage > 80 ? '🟢' : confPercentage > 50 ? '🟡' : '🔴';
+
+            return `
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small><strong>${name}</strong></small>
+                        <small class="text-muted">${confPercentage}% ${indicator}</small>
+                    </div>
+                    <div class="progress" style="height: 5px;">
+                        <div class="progress-bar" style="width: ${confPercentage}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async loadInteractions() {
+            try {
+                const response = await fetch('/api/master-model/interactions?days=7&limit=20');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displayInteractions(data.interactions || []);
+                }
+            } catch (error) {
+                console.error('Error loading interactions:', error);
+            }
+        }
+
+        displayInteractions(interactions) {
+            if (interactions.length === 0) {
+                document.getElementById('interactionsList').innerHTML = '<p class="text-muted">No interactions recorded</p>';
+                return;
+            }
+
+            const html = interactions.map(i => `
+                <div class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <strong>${i.command || 'Unknown'}</strong>
+                            <br>
+                            <small class="text-muted">${i.response_summary || 'No summary'}</small>
+                        </div>
+                        <small class="text-muted">${this.timeAgo(new Date(i.timestamp))}</small>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('interactionsList').innerHTML = html;
+        }
+
+        async triggerReflection() {
+            const btn = document.getElementById('reflectBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Reflecting...';
+
+            try {
+                const response = await fetch('/api/master-model/reflect', { method: 'POST' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.loadProfile();
+                    alert(`Reflection complete!\nInteractions analyzed: ${data.interactions_analyzed}\nTraits updated: ${data.traits_updated}`);
+                }
+            } catch (error) {
+                console.error('Error triggering reflection:', error);
+                alert('Failed to trigger reflection');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        viewInteractionHistory() {
+            alert('Full interaction history - Not yet implemented');
+        }
+
+        timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            const intervals = {
+                year: 31536000,
+                month: 2592000,
+                week: 604800,
+                day: 86400,
+                hour: 3600,
+                minute: 60
+            };
+
+            for (const [key, value] of Object.entries(intervals)) {
+                const interval = Math.floor(seconds / value);
+                if (interval >= 1) {
+                    return `${interval} ${key}${interval !== 1 ? 's' : ''} ago`;
+                }
+            }
+            return 'just now';
+        }
+    }
+
+    let masterPage = null;
+    document.addEventListener('DOMContentLoaded', () => {
+        masterPage = new MasterModelPage();
+    });
+</script>
+{% endblock %}

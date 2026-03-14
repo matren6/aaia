@@ -171,13 +171,13 @@ class HierarchyManager:
                     "tier_progress"
                 )
 
-            # Update focus
-            if new_tier != current_tier:
-                cursor.execute("UPDATE hierarchy_of_needs SET current_focus=0 WHERE tier=?", (current_tier,))
-                cursor.execute("UPDATE hierarchy_of_needs SET current_focus=1 WHERE tier=?", (new_tier,))
-                conn.commit()
+        # Update focus
+        if new_tier != current_tier:
+            cursor.execute("UPDATE hierarchy_of_needs SET current_focus=0 WHERE tier=?", (current_tier,))
+            cursor.execute("UPDATE hierarchy_of_needs SET current_focus=1 WHERE tier=?", (new_tier,))
+            conn.commit()
 
-            conn.close()
+        conn.close()
 
     def update_tier_progress(self, tier: int, delta: float):
         """Increment progress for a tier by delta (0-1 scale)."""

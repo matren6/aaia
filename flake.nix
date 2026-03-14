@@ -17,6 +17,10 @@
           psutil
           python-dotenv
           pytest
+          flask
+          flask-socketio
+          python-socketio
+          flask-cors
         ]);
         
       in

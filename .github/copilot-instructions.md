@@ -187,3 +187,4 @@ subprocess.run(['nix', 'build', '.#aaia'], check=True)
 - ⚠️ **No systemd in WSL** - full service testing needs NixOS
 - 📍 **WSL Path**: `/mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia`
 - 🤖 **Use batch mode** for automated testing and CI/CD pipelines
+- ⚠️ **IMPORTANT: Per-implementation phase, create ONLY ONE final markdown summary file**

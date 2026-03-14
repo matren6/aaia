@@ -87,6 +87,15 @@ class Arbiter:
         except Exception as e:
             print(f"Warning: Resource monitoring failed to start: {e}")
 
+        # Start web server (Phase 1)
+        try:
+            if self.config.web_server.enabled:
+                web_server = self.container.get('WebServer')
+                web_server.start()
+                print(f"Web dashboard available at http://{self.config.web_server.host}:{self.config.web_server.port}")
+        except Exception as e:
+            print(f"Warning: Web server failed to start: {e}")
+
         # Publish ready event
         self.event_bus.publish(Event(
             type=EventType.SYSTEM_STARTUP,
