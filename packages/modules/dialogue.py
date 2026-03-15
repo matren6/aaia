@@ -73,16 +73,19 @@ class DialogueManager:
             reasoning="Beginning structured argument protocol",
             outcome="pending"
         )
-        
+
         # Use centralized PromptManager prompt only
         prompt_data = self.prompt_manager.get_prompt(
             "command_understanding",
             command=master_command,
             context=context
         )
-        provider = self.router.route_request("reasoning", "high")
-        response = provider.generate(prompt_data["prompt"],
-            prompt_data.get("system_prompt", "")
+
+        response = self.router.generate(
+            prompt_data["prompt"],
+            prompt_data.get("system_prompt", ""),
+            task_type="reasoning",
+            complexity="high"
         )
 
         # Parse response

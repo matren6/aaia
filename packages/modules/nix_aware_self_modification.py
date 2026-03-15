@@ -99,8 +99,8 @@ class NixAwareSelfModification:
                     original_code=source,
                     issues='; '.join([c.get('suggestion','') for c in analysis['complexities']])
                 )
-                provider = self.router.route_request("coding", "high")
-                suggestions = provider.generate(pm.get("prompt", ""),
+                
+                suggestions = self.router.generate(pm.get("prompt", ""),
                     pm.get("system_prompt", "You are a code review expert.")
                 )
 

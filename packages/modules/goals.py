@@ -94,8 +94,8 @@ class GoalSystem:
                     system_state=actions_text,
                     performance=""
                 )
-                provider = self.router.route_request("planning", "high")
-                response = provider.generate(prompt_data["prompt"],
+                
+                response = self.router.generate(prompt_data["prompt"],
                     prompt_data.get("system_prompt", "You are a strategic planner. Suggest practical, valuable goals.")
                 )
                 goals.append(response)

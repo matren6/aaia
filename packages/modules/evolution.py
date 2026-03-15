@@ -202,10 +202,12 @@ class EvolutionManager:
             f"Bottlenecks: {diagnosis.get('bottlenecks', [])}\n"
             f"Improvement opportunities: {len(diagnosis.get('improvement_opportunities', []))}"
         )
-
-        provider = self.router.route_request("planning", "high")
+        
         prompt_data = self.prompt_manager.get_prompt("evolution_task_creation", analysis=analysis_text)
-        response = provider.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
+
+        
+
+        response = self.router.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
 
         tasks: List[Dict] = []
         current_task: Dict = {}
@@ -356,8 +358,8 @@ class EvolutionManager:
             raise DependencyError("Required prompt 'task_execution_planner' not registered in PromptManager")
 
         prompt_data = self.prompt_manager.get_prompt("task_execution_planner", task=task.get('task', ''), description=task.get('description', ''))
-        provider = self.router.route_request("reasoning", "medium")
-        response = provider.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
+        
+        response = self.router.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
 
         try:
             if "create_tool" in response.lower():

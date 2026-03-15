@@ -245,8 +245,8 @@ class EvolutionPipeline:
             raise DependencyError("Required prompt 'evolution_task_creation' not registered in PromptManager")
 
         prompt_data = self.prompt_manager.get_prompt("evolution_task_creation", analysis=analysis_text)
-        provider = self.router.route_request("analysis", "high")
-        response = provider.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
+        
+        response = self.router.generate(prompt_data["prompt"], prompt_data.get("system_prompt", ""))
 
         # Extract task names from response
         prioritized_names = []

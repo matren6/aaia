@@ -262,8 +262,8 @@ class MetaCognition:
             past_month=json.dumps(past_month, indent=2),
             past_week=json.dumps(past_week, indent=2)
         )
-        provider = self.router.route_request("analysis", "high")
-        response = provider.generate(prompt_data["prompt"],
+        
+        response = self.router.generate(prompt_data["prompt"],
             prompt_data.get("system_prompt", "")
         )
 
@@ -294,8 +294,8 @@ class MetaCognition:
             "thinking_patterns",
             thoughts=thoughts_text
         )
-        provider = self.router.route_request("analysis", "high")
-        response = provider.generate(prompt_data["prompt"],
+        
+        response = self.router.generate(prompt_data["prompt"],
             prompt_data.get("system_prompt", "")
         )
         thought_pattern["analysis"] = response

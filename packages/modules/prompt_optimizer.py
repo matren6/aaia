@@ -68,8 +68,8 @@ class PromptOptimizer:
                     performance_issues=performance_metrics.get("issues", []),
                     success_criteria=performance_metrics.get("success_criteria", "")
                 )
-                provider = self.router.route_request("optimization", "high")
-                suggestions = provider.generate(opt_prompt["prompt"],
+                
+                suggestions = self.router.generate(opt_prompt["prompt"],
                     opt_prompt["system_prompt"]
                 )
         except Exception as e:
@@ -91,8 +91,8 @@ class PromptOptimizer:
                         performance_issues=performance_metrics.get("issues", []),
                         success_criteria=performance_metrics.get("success_criteria", "Improve clarity and effectiveness")
                     )
-                    provider = self.router.route_request("optimization", "high")
-                    suggestions = provider.generate(opt_prompt["prompt"],
+                    
+                    suggestions = self.router.generate(opt_prompt["prompt"],
                         opt_prompt.get("system_prompt", "You are a prompt engineering expert.")
                     )
             except Exception as e:
@@ -243,11 +243,13 @@ class PromptOptimizer:
                 prompt_name,
                 **test_case.get("params", {})
             )
-            
+
             # Call the model
-            provider = self.router.route_request("testing", "medium")
-            response = provider.generate(prompt_data["prompt"],
-                prompt_data["system_prompt"]
+            response = self.router.generate(
+                prompt_data["prompt"],
+                prompt_data["system_prompt"],
+                task_type="optimization",
+                complexity="high"
             )
             
             # Evaluate response quality

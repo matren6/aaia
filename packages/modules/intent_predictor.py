@@ -238,9 +238,16 @@ class IntentPredictor:
             day_preference=temporal_pattern.get('day_preference', 'varied'),
             sequential_pattern=sequential_pattern
         )
-        provider = self.router.route_request("prediction", "high")
-        response = provider.generate(prompt_data["prompt"],
-            prompt_data["system_prompt"]
+
+
+        
+
+
+        response = self.router.generate(
+            prompt_data["prompt"],
+            prompt_data["system_prompt"],
+            task_type="prediction",
+            complexity="high"
         )
 
         predictions = self.parse_predictions(response)
@@ -378,8 +385,8 @@ def analyze_capability_gap(self, command: str) -> Optional[Dict]:
         "capability_gap_analysis",
         command=command
     )
-    provider = self.router.route_request("analysis", "medium")
-    response = provider.generate(prompt_data["prompt"],
+    
+    response = self.router.generate(prompt_data["prompt"],
         prompt_data["system_prompt"]
     )
 

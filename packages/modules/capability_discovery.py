@@ -135,9 +135,8 @@ class CapabilityDiscovery:
                 "capability_analysis",
                 capabilities=combined
             )
-
-            provider = self.router.route_request("planning", "high")
-            response = provider.generate(prompt_data["prompt"],
+            
+            response = self.router.generate(prompt_data["prompt"],
                 prompt_data.get("system_prompt", "You are a capability discovery expert for autonomous AI systems.")
             )
 

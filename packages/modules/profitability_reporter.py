@@ -59,8 +59,7 @@ class ProfitabilityReporter:
                 }
             )
             
-            provider = self.router.route_request("reasoning", "medium")
-            analysis = provider.generate(prompt_data['prompt']
+            analysis = self.router.generate(prompt_data['prompt']
             )
             
             parsed_analysis = self._parse_analysis(analysis)
@@ -110,8 +109,7 @@ class ProfitabilityReporter:
                 }
             )
             
-            provider = self.router.route_request("reasoning", "medium")
-            analysis = provider.generate(prompt_data['prompt']
+            analysis = self.router.generate(prompt_data['prompt']
             )
             
             parsed = self._parse_source_analysis(analysis)
@@ -149,8 +147,7 @@ class ProfitabilityReporter:
                 }
             )
             
-            provider = self.router.route_request("reasoning", "medium")
-            analysis = provider.generate(prompt_data['prompt']
+            analysis = self.router.generate(prompt_data['prompt']
             )
             
             optimizations = self._parse_optimizations(analysis)
@@ -192,8 +189,7 @@ class ProfitabilityReporter:
                 }
             )
             
-            provider = self.router.route_request("reasoning", "high")
-            analysis = provider.generate(prompt_data['prompt']
+            analysis = self.router.generate(prompt_data['prompt']
             )
             
             projections = self._parse_projections(analysis)
@@ -229,8 +225,7 @@ class ProfitabilityReporter:
                 }
             )
             
-            provider = self.router.route_request("reasoning", "high")
-            analysis = provider.generate(prompt_data['prompt']
+            analysis = self.router.generate(prompt_data['prompt']
             )
             
             plan = self._parse_action_plan(analysis)
