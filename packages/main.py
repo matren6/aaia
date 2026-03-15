@@ -91,8 +91,11 @@ class Arbiter:
         try:
             if self.config.web_server.enabled:
                 web_server = self.container.get('WebServer')
-                web_server.start()
-                print(f"Web dashboard available at http://{self.config.web_server.host}:{self.config.web_server.port}")
+                if web_server is not None:
+                    web_server.start()
+                    print(f"Web dashboard available at http://{self.config.web_server.host}:{self.config.web_server.port}")
+                else:
+                    print("[INFO] Web server dependencies not available - dashboard disabled")
         except Exception as e:
             print(f"Warning: Web server failed to start: {e}")
 

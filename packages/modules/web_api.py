@@ -710,6 +710,188 @@ def create_api_blueprint(data_aggregator=None, container=None):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ===== Database Explorer =====
+
+    @api.route('/database/tables', methods=['GET'])
+    def get_database_tables():
+        """Get list of all tables in database."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            db_manager = api.container.get('DatabaseManager')
+
+            tables = db_manager.query("""
+                SELECT name, sql 
+                FROM sqlite_master 
+                WHERE type='table' 
+                ORDER BY name
+            """)
+
+            table_list = []
+            for table in tables:
+                # Get row count
+                try:
+                    count_result = db_manager.query_one(f"SELECT COUNT(*) as count FROM {table['name']}")
+                    row_count = count_result['count'] if count_result else 0
+                except:
+                    row_count = 0
+
+                table_list.append({
+                    "name": table['name'],
+                    "sql": table['sql'],
+                    "row_count": row_count
+                })
+
+            return jsonify({
+                "tables": table_list,
+                "count": len(table_list)
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/database/table/<table_name>', methods=['GET'])
+    def get_table_data(table_name):
+        """Get data from a specific table."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            # Validate table name (prevent SQL injection)
+            if not table_name.replace('_', '').isalnum():
+                return jsonify({"error": "Invalid table name"}), 400
+
+            db_manager = api.container.get('DatabaseManager')
+
+            limit = int(request.args.get('limit', 100))
+            offset = int(request.args.get('offset', 0))
+
+            # Get table schema
+            schema = db_manager.query_one(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,)
+            )
+
+            if not schema:
+                return jsonify({"error": "Table not found"}), 404
+
+            # Get total count
+            count_result = db_manager.query_one(f"SELECT COUNT(*) as count FROM {table_name}")
+            total_count = count_result['count'] if count_result else 0
+
+            # Get data
+            rows = db_manager.query(
+                f"SELECT * FROM {table_name} ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+
+            # Get column names
+            if rows:
+                columns = list(rows[0].keys())
+            else:
+                # Parse from schema if no rows
+                columns = []
+
+            return jsonify({
+                "table_name": table_name,
+                "schema": schema['sql'] if schema else None,
+                "columns": columns,
+                "rows": [dict(row) for row in rows],
+                "total_count": total_count,
+                "limit": limit,
+                "offset": offset
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/database/query', methods=['POST'])
+    def execute_query():
+        """Execute a custom SQL query (SELECT only for safety)."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            data = request.get_json()
+            query = data.get('query', '').strip()
+
+            if not query:
+                return jsonify({"error": "Query cannot be empty"}), 400
+
+            # Safety check - only allow SELECT queries
+            if not query.upper().startswith('SELECT'):
+                return jsonify({"error": "Only SELECT queries are allowed"}), 403
+
+            db_manager = api.container.get('DatabaseManager')
+
+            # Execute query with timeout
+            rows = db_manager.query(query)
+
+            # Get column names
+            if rows:
+                columns = list(rows[0].keys())
+            else:
+                columns = []
+
+            return jsonify({
+                "query": query,
+                "columns": columns,
+                "rows": [dict(row) for row in rows],
+                "row_count": len(rows)
+            })
+
+        except Exception as e:
+            return jsonify({"error": f"Query failed: {str(e)}"}), 400
+
+    @api.route('/database/export/<table_name>', methods=['GET'])
+    def export_table(table_name):
+        """Export table data as CSV or JSON."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            # Validate table name
+            if not table_name.replace('_', '').isalnum():
+                return jsonify({"error": "Invalid table name"}), 400
+
+            db_manager = api.container.get('DatabaseManager')
+            format_type = request.args.get('format', 'json')
+
+            # Get all data from table
+            rows = db_manager.query(f"SELECT * FROM {table_name}")
+
+            if format_type == 'csv':
+                import io
+                import csv
+
+                if not rows:
+                    return "No data", 200, {'Content-Type': 'text/csv'}
+
+                output = io.StringIO()
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                for row in rows:
+                    writer.writerow(dict(row))
+
+                output.seek(0)
+                return output.getvalue(), 200, {
+                    'Content-Type': 'text/csv',
+                    'Content-Disposition': f'attachment; filename={table_name}.csv'
+                }
+            else:
+                # JSON format
+                return jsonify({
+                    "table": table_name,
+                    "row_count": len(rows),
+                    "data": [dict(row) for row in rows]
+                }), 200, {
+                    'Content-Disposition': f'attachment; filename={table_name}.json'
+                }
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     # ===== Error Handlers =====
 
     @api.errorhandler(404)

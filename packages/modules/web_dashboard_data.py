@@ -280,32 +280,29 @@ class DashboardDataAggregator:
             }
 
     def get_config(self) -> Dict[str, Any]:
-        """Get current configuration."""
+        """Get complete current configuration with all settings."""
         try:
             if not self.config:
                 from modules.settings import get_config
                 self.config = get_config()
 
-            return {
-                "llm": {
-                    "default_provider": self.config.llm.default_provider,
-                    "fallback_provider": self.config.llm.fallback_provider,
-                    "temperature": 0.7,  # TODO: Get from config
-                },
-                "economics": {
-                    "initial_balance": self.config.economics.initial_balance,
-                    "crisis_threshold": self.config.economics.low_balance_threshold,
-                },
-                "scheduler": {
-                    "enabled": self.config.scheduler.enabled,
-                    "default_interval": self.config.scheduler.diagnosis_interval,
-                },
-                "web_server": {
-                    "enabled": self.config.web_server.enabled,
-                    "host": self.config.web_server.host,
-                    "port": self.config.web_server.port,
-                },
+            from dataclasses import asdict
+            import os
+
+            # Get full configuration as dict
+            config_dict = asdict(self.config)
+
+            # Add environment variables that aren't in config
+            env_vars = {
+                "PYTHONPATH": os.getenv("PYTHONPATH", ""),
+                "PATH": os.getenv("PATH", "")[:200] + "...",  # Truncate long paths
+                "DB_PATH": os.getenv("DB_PATH", ""),
+                "WEB_SERVER_ENABLED": os.getenv("WEB_SERVER_ENABLED", ""),
             }
+
+            config_dict["environment"] = env_vars
+
+            return config_dict
         except Exception as e:
             return {"error": str(e)}
 

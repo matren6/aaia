@@ -156,6 +156,16 @@ class WebServer:
             """Tools registry page."""
             return render_template("tools.html")
 
+        @app.route("/llm")
+        def llm():
+            """LLM interactions page."""
+            return render_template("llm.html")
+
+        @app.route("/database")
+        def database():
+            """Database explorer page."""
+            return render_template("database.html")
+
         @app.route("/config")
         def config():
             """Configuration page."""

@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+
+{% block title %}LLM Interactions - AAIA Dashboard{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">LLM Interactions</h1>
+        <p class="text-muted">View LLM request/response history and statistics</p>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Calls</h6>
+                <h3 class="card-title" id="totalCalls">-</h3>
+                <small class="text-muted">Last 24 hours</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Tokens</h6>
+                <h3 class="card-title" id="totalTokens">-</h3>
+                <small class="text-muted">Input + Output</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Total Cost</h6>
+                <h3 class="card-title" id="totalCost">$0.00</h3>
+                <small class="text-muted">Last 24 hours</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-subtitle mb-2 text-muted">Avg Latency</h6>
+                <h3 class="card-title" id="avgLatency">-</h3>
+                <small class="text-muted">Milliseconds</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Provider Breakdown -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Provider Usage (Last 24 Hours)</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>Model</th>
+                            <th>Calls</th>
+                            <th>Tokens</th>
+                            <th>Cost</th>
+                            <th>Avg Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody id="providerStatsBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">Loading statistics...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <label for="providerFilter" class="form-label">Provider:</label>
+        <select id="providerFilter" class="form-select">
+            <option value="">All Providers</option>
+            <option value="ollama">Ollama</option>
+            <option value="venice">Venice</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label for="limitFilter" class="form-label">Show:</label>
+        <select id="limitFilter" class="form-select">
+            <option value="50" selected>Last 50</option>
+            <option value="100">Last 100</option>
+            <option value="200">Last 200</option>
+            <option value="500">Last 500</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label for="searchBox" class="form-label">Search:</label>
+        <input type="text" id="searchBox" class="form-control" placeholder="Search in prompts/responses...">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100" id="applyFiltersBtn">Apply</button>
+    </div>
+</div>
+
+<!-- Interactions Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent LLM Interactions</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 130px;">Time</th>
+                            <th style="width: 100px;">Provider</th>
+                            <th style="width: 150px;">Model</th>
+                            <th style="width: 100px;">Context</th>
+                            <th>Prompt</th>
+                            <th style="width: 80px;">Tokens</th>
+                            <th style="width: 80px;">Latency</th>
+                            <th style="width: 70px;">Cost</th>
+                            <th style="width: 60px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="interactionsBody">
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">Loading interactions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted" id="interactionCount">-</small>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item" id="prevBtn" style="display:none;">
+                            <a class="page-link" href="#" onclick="llmPage.previousPage(); return false;">Previous</a>
+                        </li>
+                        <li class="page-item" id="nextBtn" style="display:none;">
+                            <a class="page-link" href="#" onclick="llmPage.nextPage(); return false;">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interaction Detail Modal -->
+<div class="modal fade" id="interactionModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">LLM Interaction Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Provider:</strong> <span id="modalProvider">-</span><br>
+                        <strong>Model:</strong> <span id="modalModel">-</span><br>
+                        <strong>Time:</strong> <span id="modalTime">-</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Context:</strong> <span id="modalContext">-</span><br>
+                        <strong>Tokens:</strong> <span id="modalTokens">-</span><br>
+                        <strong>Latency:</strong> <span id="modalLatency">-</span> ms
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <h6 class="border-bottom pb-2">System Prompt</h6>
+                    <pre class="bg-light p-3 rounded" style="max-height: 200px; overflow-y: auto;" id="modalSystemPrompt">-</pre>
+                </div>
+
+                <div class="mb-3">
+                    <h6 class="border-bottom pb-2">User Prompt</h6>
+                    <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;" id="modalPrompt">-</pre>
+                </div>
+
+                <div class="mb-3">
+                    <h6 class="border-bottom pb-2">Response</h6>
+                    <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;" id="modalResponse">-</pre>
+                </div>
+
+                <div class="mb-0" id="modalErrorSection" style="display:none;">
+                    <h6 class="border-bottom pb-2 text-danger">Error</h6>
+                    <pre class="bg-danger bg-opacity-10 p-3 rounded" id="modalError">-</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/websocket.js"></script>
+<script>
+    class LLMPage {
+        constructor() {
+            this.currentPage = 0;
+            this.pageSize = 50;
+            this.totalInteractions = 0;
+            this.interactions = [];
+            this.init();
+        }
+
+        init() {
+            this.loadStatistics();
+            this.loadInteractions();
+            
+            document.getElementById('applyFiltersBtn').addEventListener('click', () => {
+                this.currentPage = 0;
+                this.loadInteractions();
+                this.loadStatistics();
+            });
+
+            // Refresh every 10 seconds
+            setInterval(() => {
+                this.loadStatistics();
+                this.loadInteractions();
+            }, 10000);
+
+            this.setupWebSocketUpdates();
+        }
+
+        setupWebSocketUpdates() {
+            if (typeof wsClient !== 'undefined' && wsClient) {
+                wsClient.on('llm_interaction', () => {
+                    this.loadStatistics();
+                    this.loadInteractions();
+                });
+            }
+        }
+
+        async loadStatistics() {
+            try {
+                const response = await fetch('/api/llm/statistics?hours=24');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.displayStatistics(data);
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        displayStatistics(data) {
+            const stats = data.statistics || [];
+            
+            let totalCalls = 0;
+            let totalTokens = 0;
+            let totalCost = 0;
+            let latencies = [];
+
+            stats.forEach(stat => {
+                totalCalls += stat.call_count || 0;
+                totalTokens += stat.total_tokens || 0;
+                totalCost += stat.total_cost || 0;
+                if (stat.avg_latency_ms) {
+                    latencies.push(stat.avg_latency_ms);
+                }
+            });
+
+            const avgLatency = latencies.length > 0 
+                ? (latencies.reduce((a, b) => a + b, 0) / latencies.length).toFixed(0)
+                : 0;
+
+            document.getElementById('totalCalls').textContent = totalCalls.toLocaleString();
+            document.getElementById('totalTokens').textContent = totalTokens.toLocaleString();
+            document.getElementById('totalCost').textContent = '$' + totalCost.toFixed(4);
+            document.getElementById('avgLatency').textContent = avgLatency + ' ms';
+
+            this.displayProviderStats(stats);
+        }
+
+        displayProviderStats(stats) {
+            const tbody = document.getElementById('providerStatsBody');
+            
+            if (stats.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No data available</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = stats.map(stat => `
+                <tr>
+                    <td><span class="badge bg-primary">${this.escapeHtml(stat.provider || 'unknown')}</span></td>
+                    <td><code>${this.escapeHtml(stat.model || 'default')}</code></td>
+                    <td>${(stat.call_count || 0).toLocaleString()}</td>
+                    <td>${(stat.total_tokens || 0).toLocaleString()}</td>
+                    <td>$${(stat.total_cost || 0).toFixed(4)}</td>
+                    <td>${(stat.avg_latency_ms || 0).toFixed(0)} ms</td>
+                </tr>
+            `).join('');
+        }
+
+        getFilters() {
+            return {
+                provider: document.getElementById('providerFilter').value,
+                limit: parseInt(document.getElementById('limitFilter').value),
+                search: document.getElementById('searchBox').value
+            };
+        }
+
+        async loadInteractions() {
+            try {
+                const filters = this.getFilters();
+                
+                let query = `/api/llm/interactions?limit=${filters.limit}`;
+                if (filters.provider) query += `&provider=${filters.provider}`;
+
+                const response = await fetch(query);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.interactions = data.interactions || [];
+                    this.totalInteractions = data.total || 0;
+                    this.displayInteractions();
+                }
+            } catch (error) {
+                console.error('Error loading interactions:', error);
+                document.getElementById('interactionsBody').innerHTML = 
+                    '<tr><td colspan="9" class="text-center text-danger">Error loading interactions</td></tr>';
+            }
+        }
+
+        displayInteractions() {
+            const tbody = document.getElementById('interactionsBody');
+            const filters = this.getFilters();
+            
+            let displayInteractions = this.interactions;
+
+            // Client-side search filter
+            if (filters.search) {
+                const search = filters.search.toLowerCase();
+                displayInteractions = displayInteractions.filter(i => 
+                    (i.prompt && i.prompt.toLowerCase().includes(search)) ||
+                    (i.response && i.response.toLowerCase().includes(search)) ||
+                    (i.context && i.context.toLowerCase().includes(search))
+                );
+            }
+
+            if (displayInteractions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No interactions found</td></tr>';
+                document.getElementById('interactionCount').textContent = '0 interactions';
+                return;
+            }
+
+            tbody.innerHTML = displayInteractions.map(interaction => {
+                const timestamp = new Date(interaction.timestamp).toLocaleString();
+                const provider = interaction.provider || 'unknown';
+                const model = interaction.model || 'default';
+                const context = interaction.context || 'general';
+                const promptPreview = (interaction.prompt || '').substring(0, 80) + '...';
+                const tokens = interaction.tokens_used || 0;
+                const latency = interaction.latency_ms || 0;
+                const cost = interaction.cost || 0;
+
+                return `
+                    <tr>
+                        <td><small>${timestamp}</small></td>
+                        <td><span class="badge bg-primary">${this.escapeHtml(provider)}</span></td>
+                        <td><code style="font-size: 0.85em;">${this.escapeHtml(model)}</code></td>
+                        <td><small>${this.escapeHtml(context)}</small></td>
+                        <td><small class="text-muted">${this.escapeHtml(promptPreview)}</small></td>
+                        <td><small>${tokens}</small></td>
+                        <td><small>${latency} ms</small></td>
+                        <td><small>$${cost.toFixed(4)}</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="llmPage.showInteractionDetails(${interaction.id})">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('interactionCount').textContent = 
+                `${displayInteractions.length} of ${this.totalInteractions} interactions`;
+        }
+
+        showInteractionDetails(id) {
+            const interaction = this.interactions.find(i => i.id === id);
+            if (!interaction) return;
+
+            document.getElementById('modalProvider').textContent = interaction.provider || 'unknown';
+            document.getElementById('modalModel').textContent = interaction.model || 'default';
+            document.getElementById('modalTime').textContent = new Date(interaction.timestamp).toLocaleString();
+            document.getElementById('modalContext').textContent = interaction.context || 'general';
+            document.getElementById('modalTokens').textContent = interaction.tokens_used || 0;
+            document.getElementById('modalLatency').textContent = interaction.latency_ms || 0;
+            
+            document.getElementById('modalSystemPrompt').textContent = interaction.system_prompt || 'None';
+            document.getElementById('modalPrompt').textContent = interaction.prompt || 'No prompt recorded';
+            document.getElementById('modalResponse').textContent = interaction.response || 'No response recorded';
+
+            if (interaction.error) {
+                document.getElementById('modalErrorSection').style.display = 'block';
+                document.getElementById('modalError').textContent = interaction.error;
+            } else {
+                document.getElementById('modalErrorSection').style.display = 'none';
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('interactionModal'));
+            modal.show();
+        }
+
+        escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        previousPage() {
+            if (this.currentPage > 0) {
+                this.currentPage--;
+                this.loadInteractions();
+            }
+        }
+
+        nextPage() {
+            const maxPage = Math.ceil(this.totalInteractions / this.pageSize) - 1;
+            if (this.currentPage < maxPage) {
+                this.currentPage++;
+                this.loadInteractions();
+            }
+        }
+
+        updatePagination() {
+            const maxPage = Math.ceil(this.totalInteractions / this.pageSize) - 1;
+            document.getElementById('prevBtn').style.display = this.currentPage > 0 ? 'block' : 'none';
+            document.getElementById('nextBtn').style.display = this.currentPage < maxPage ? 'block' : 'none';
+        }
+    }
+
+    // Initialize page
+    let llmPage;
+    document.addEventListener('DOMContentLoaded', function() {
+        llmPage = new LLMPage();
+    });
+</script>
+
+<style>
+    pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        font-size: 0.875rem;
+    }
+
+    .table td {
+        vertical-align: middle;
+    }
+
+    code {
+        font-size: 0.85em;
+        background-color: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+</style>
+{% endblock %}

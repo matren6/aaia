@@ -42,37 +42,37 @@ class MasterWellBeingMonitor:
         self.prompt_manager = prompt_manager
         self.router = router
         self.event_bus = event_bus
-        self.db = database_manager.get_connection()
     
     def assess_wellbeing(self, days: int = 7) -> Dict:
         """
         Comprehensive well-being assessment.
-        
+
         Analyzes recent interactions for well-being indicators:
         - Frustration patterns
         - Stress indicators
         - Time-wasting activities
         - Positive/negative sentiment trends
-        
+
         Args:
             days: Number of days to analyze
-            
+
         Returns:
             Dict with well-being metrics and recommendations
         """
-        cursor = self.db.cursor()
-        since = (datetime.now() - timedelta(days=days)).isoformat()
-        
-        # Get recent interactions
-        cursor.execute('''
-            SELECT interaction_type, user_input, system_response, 
-                   success, timestamp, intent_detected
-            FROM master_interactions
-            WHERE timestamp > ?
-            ORDER BY timestamp DESC
-        ''', (since,))
-        
-        interactions = cursor.fetchall()
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            since = (datetime.now() - timedelta(days=days)).isoformat()
+
+            # Get recent interactions
+            cursor.execute('''
+                SELECT interaction_type, user_input, system_response, 
+                       success, timestamp, intent_detected
+                FROM master_interactions
+                WHERE timestamp > ?
+                ORDER BY timestamp DESC
+            ''', (since,))
+
+            interactions = cursor.fetchall()
         
         if not interactions:
             return {
@@ -305,48 +305,50 @@ class MasterWellBeingMonitor:
     
     def _store_assessment(self, assessment: Dict):
         """Store assessment in database"""
-        cursor = self.db.cursor()
-        
-        cursor.execute('''
-            INSERT INTO wellbeing_assessments
-            (timestamp, wellbeing_score, period_days, interaction_count,
-             frustration_level, stress_indicator_count, time_waste_count,
-             sentiment_trend, recommendations)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            assessment['timestamp'],
-            assessment['wellbeing_score'],
-            assessment['period_days'],
-            assessment['interaction_count'],
-            assessment['frustration_level'],
-            len(assessment['stress_indicators']),
-            len(assessment['time_waste_patterns']),
-            assessment['sentiment_trend'],
-            json.dumps(assessment['recommendations'])
-        ))
-        
-        self.db.commit()
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                INSERT INTO wellbeing_assessments
+                (timestamp, wellbeing_score, period_days, interaction_count,
+                 frustration_level, stress_indicator_count, time_waste_count,
+                 sentiment_trend, recommendations)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                assessment['timestamp'],
+                assessment['wellbeing_score'],
+                assessment['period_days'],
+                assessment['interaction_count'],
+                assessment['frustration_level'],
+                len(assessment['stress_indicators']),
+                len(assessment['time_waste_patterns']),
+                assessment['sentiment_trend'],
+                json.dumps(assessment['recommendations'])
+            ))
+
+            conn.commit()
     
     def get_wellbeing_trend(self, days: int = 30) -> Dict:
         """Get well-being trend over time"""
-        cursor = self.db.cursor()
-        since = (datetime.now() - timedelta(days=days)).isoformat()
-        
-        cursor.execute('''
-            SELECT timestamp, wellbeing_score, sentiment_trend
-            FROM wellbeing_assessments
-            WHERE timestamp > ?
-            ORDER BY timestamp ASC
-        ''', (since,))
-        
-        assessments = cursor.fetchall()
-        
-        if not assessments:
-            return {'status': 'no_data'}
-        
-        scores = [a[1] for a in assessments]
-        avg_score = sum(scores) / len(scores) if scores else 0
-        trend = 'improving' if scores[-1] > scores[0] else 'declining' if scores[-1] < scores[0] else 'stable'
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            since = (datetime.now() - timedelta(days=days)).isoformat()
+
+            cursor.execute('''
+                SELECT timestamp, wellbeing_score, sentiment_trend
+                FROM wellbeing_assessments
+                WHERE timestamp > ?
+                ORDER BY timestamp ASC
+            ''', (since,))
+
+            assessments = cursor.fetchall()
+
+            if not assessments:
+                return {'status': 'no_data'}
+
+            scores = [a[1] for a in assessments]
+            avg_score = sum(scores) / len(scores) if scores else 0
+            trend = 'improving' if scores[-1] > scores[0] else 'declining' if scores[-1] < scores[0] else 'stable'
         
         return {
             'average_score': avg_score,

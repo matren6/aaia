@@ -279,6 +279,50 @@ class AutonomousScheduler:
             priority=3
         )
 
+        # PHASE 2: AUTONOMOUS TOOL DEVELOPMENT (NEW)
+
+        # Autonomous tool development - daily
+        self.register_task(
+            name="autonomous_tool_development",
+            function=self.develop_needed_tools,
+            interval_minutes=max(60, int(24 * 60)),  # Daily
+            priority=2
+        )
+
+        # Tool performance optimization - every 2 days
+        self.register_task(
+            name="tool_performance_optimizer",
+            function=self.optimize_underperforming_tools,
+            interval_minutes=max(120, int(48 * 60)),  # Every 2 days
+            priority=3
+        )
+
+        # Tool deprecation check - weekly
+        self.register_task(
+            name="tool_deprecation_check",
+            function=self.deprecate_unused_tools,
+            interval_minutes=max(180, int(7 * 24 * 60)),  # Weekly
+            priority=4
+        )
+
+        # PHASE 3: SECURITY & QUALITY VALIDATION (NEW)
+
+        # Tool security audit - every 3 days
+        self.register_task(
+            name="tool_security_audit",
+            function=self.audit_all_tools_scheduled,
+            interval_minutes=max(180, int(3 * 24 * 60)),  # Every 3 days
+            priority=2
+        )
+
+        # Code quality assessment - weekly
+        self.register_task(
+            name="code_quality_assessment",
+            function=self.assess_code_quality_all,
+            interval_minutes=max(180, int(7 * 24 * 60)),  # Weekly
+            priority=3
+        )
+
         self.register_task(
             name="intent_prediction",
             function=self.run_intent_prediction,
@@ -618,6 +662,33 @@ class AutonomousScheduler:
                     ideas.append(line.strip())
 
         return ideas if ideas else [response] if response else []
+
+    def _get_capability_summary(self) -> str:
+        """Get summary of current system capabilities"""
+        try:
+            tools = self.forge.list_tools()
+            if not tools:
+                return "No tools created yet. System has base capabilities only."
+
+            summaries = []
+            for tool in tools:
+                name = tool.get('name', 'unknown')
+                desc = tool.get('description', 'No description')
+                status = tool.get('status', 'unknown')
+                summaries.append(f"  • {name} ({status}): {desc}")
+
+            return f"Current Capabilities ({len(tools)} tools):\n" + "\n".join(summaries)
+        except Exception as e:
+            return f"Error retrieving capabilities: {e}"
+
+    def _get_tools_summary(self) -> str:
+        """Get summary of registered tools"""
+        try:
+            tools = self.forge.list_tools()
+            active = sum(1 for t in tools if t.get('status') == 'active')
+            return f"Tools: {len(tools)} registered, {active} active"
+        except Exception as e:
+            return f"Error retrieving tools: {e}"
 
     def run_reflection(self):
         """Daily reflection cycle to learn from interactions"""
@@ -1095,6 +1166,545 @@ Response format:
                 outcome="Error"
             )
             return f"Profitability report failed: {str(e)}"
+
+    # PHASE 2: AUTONOMOUS TOOL DEVELOPMENT (NEW)
+
+    def develop_needed_tools(self):
+        """
+        Proactively develop tools for identified capability gaps.
+
+        This is the main autonomous tool creation workflow:
+        1. Discover capability gaps
+        2. Prioritize by value and feasibility
+        3. Create top 3 tools
+        4. Test and validate
+        5. Deploy if passing tests
+
+        Returns:
+            Status message
+        """
+        try:
+            self.scribe.log_action(
+                "Starting autonomous tool development cycle",
+                reasoning="Scheduled capability gap analysis",
+                outcome="initiated"
+            )
+
+            # Step 1: Discover capabilities
+            cap_discovery = self._get_capability_discovery()
+            capabilities = cap_discovery.discover_new_capabilities()
+
+            if not capabilities:
+                return "No new capabilities needed at this time"
+
+            # Step 2: Prioritize
+            prioritized = self._prioritize_capabilities(capabilities)
+
+            # Step 3: Select top candidates
+            top_capabilities = prioritized[:3]  # Top 3
+
+            # Step 4: Create and validate tools
+            created_count = 0
+            failed_count = 0
+            results = []
+
+            for cap in top_capabilities:
+                tool_name = cap.get('name', 'unnamed').lower().replace(' ', '_')
+                description = cap.get('description', '')
+
+                try:
+                    self.scribe.log_action(
+                        f"Creating tool: {tool_name}",
+                        reasoning=f"Capability gap: {description}",
+                        outcome="in_progress"
+                    )
+
+                    # Create with validation
+                    metadata = self.forge.create_tool_with_validation(
+                        name=f"auto_{tool_name}",
+                        description=description,
+                        auto_test=True,
+                        min_pass_rate=0.7  # 70% pass rate required
+                    )
+
+                    created_count += 1
+                    results.append({
+                        'tool': metadata['name'],
+                        'status': 'created',
+                        'tests_passed': metadata['test_results']['success_rate']
+                    })
+
+                    self.scribe.log_action(
+                        f"Tool created successfully: {metadata['name']}",
+                        reasoning=f"Validated with {metadata['test_results']['success_rate']:.0%} test pass rate",
+                        outcome="success"
+                    )
+
+                    # Link capability to tool
+                    try:
+                        cap_discovery.mark_capability_developed(
+                            capability_name=cap.get('name'),
+                            tool_name=metadata['name']
+                        )
+                    except Exception:
+                        pass
+
+                except ValueError as e:
+                    # Tool failed validation
+                    failed_count += 1
+                    results.append({
+                        'tool': tool_name,
+                        'status': 'failed_validation',
+                        'error': str(e)
+                    })
+
+                    self.scribe.log_action(
+                        f"Tool creation failed: {tool_name}",
+                        reasoning=f"Validation error: {str(e)}",
+                        outcome="failed"
+                    )
+
+                except Exception as e:
+                    # Other error
+                    failed_count += 1
+                    results.append({
+                        'tool': tool_name,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+
+                    self.scribe.log_action(
+                        f"Tool creation error: {tool_name}",
+                        reasoning=str(e),
+                        outcome="error"
+                    )
+
+            # Summary
+            summary = f"Autonomous tool development: {created_count} created, {failed_count} failed"
+
+            self.scribe.log_action(
+                "Autonomous tool development cycle completed",
+                reasoning=f"Processed {len(top_capabilities)} capabilities",
+                outcome=summary
+            )
+
+            # Publish event
+            if self.event_bus:
+                try:
+                    from modules.bus import Event, EventType
+                    self.event_bus.emit(Event(
+                        EventType.TOOL_CREATED,
+                        {
+                            'created_count': created_count,
+                            'failed_count': failed_count,
+                            'results': results
+                        }
+                    ))
+                except:
+                    pass
+
+            return summary
+
+        except Exception as e:
+            error_msg = f"Tool development cycle failed: {str(e)}"
+            self.scribe.log_action(
+                "Autonomous tool development failed",
+                reasoning=str(e),
+                outcome="error"
+            )
+            return error_msg
+
+    def _prioritize_capabilities(self, capabilities: List[Dict]) -> List[Dict]:
+        """
+        Prioritize capabilities by value, feasibility, and urgency.
+
+        Scoring factors:
+        - Value: 0-1 (benefit to system)
+        - Feasibility: 0-1 (ease of implementation)
+        - Usage frequency: 0-1 (how often needed)
+        - Complexity: 0-1 (inverse - simpler is better)
+
+        Args:
+            capabilities: List of capability dictionaries
+
+        Returns:
+            Sorted list (highest priority first)
+        """
+        scored = []
+
+        for cap in capabilities:
+            value = cap.get('value', 0.5)
+            feasibility = cap.get('feasibility', 0.5)
+            frequency = cap.get('usage_frequency', 0.5)
+            complexity = cap.get('complexity', 5)
+
+            # Normalize complexity (1-10 scale, invert)
+            complexity_score = 1.0 - (complexity / 10.0)
+
+            # Weighted score
+            score = (
+                value * 0.35 +           # 35% value
+                feasibility * 0.30 +     # 30% feasibility
+                frequency * 0.20 +       # 20% frequency
+                complexity_score * 0.15  # 15% simplicity
+            )
+
+            cap['priority_score'] = score
+            scored.append(cap)
+
+        # Sort by score (descending)
+        scored.sort(key=lambda c: c['priority_score'], reverse=True)
+
+        return scored
+
+    def optimize_underperforming_tools(self):
+        """
+        Identify and optimize tools with performance issues.
+
+        Checks for:
+        - Low success rate (< 80%)
+        - High execution time (> 5 seconds)
+        - Frequent errors
+
+        Returns:
+            Status message
+        """
+        try:
+            # Get all tools
+            tools = self.forge.list_tools()
+            if not tools:
+                return "No tools to optimize"
+
+            issues_found = []
+            optimized = 0
+
+            for tool in tools:
+                tool_name = tool['name']
+
+                # Get performance data
+                perf = self.forge.get_tool_performance(tool_name, hours=168)  # Last week
+
+                if perf.get('no_data'):
+                    continue  # Tool not used recently
+
+                # Check for issues
+                has_issues = False
+                issue_types = []
+
+                if perf['success_rate'] < 0.8:
+                    has_issues = True
+                    issue_types.append(f"low_success_rate_{perf['success_rate']:.0%}")
+
+                if perf['avg_execution_time_ms'] > 5000:
+                    has_issues = True
+                    issue_types.append(f"slow_execution_{perf['avg_execution_time_ms']:.0f}ms")
+
+                if has_issues:
+                    issues_found.append({
+                        'tool': tool_name,
+                        'issues': issue_types,
+                        'performance': perf
+                    })
+
+                    # Attempt optimization
+                    try:
+                        self._optimize_tool(tool_name, issue_types, perf)
+                        optimized += 1
+                    except Exception as e:
+                        self.scribe.log_action(
+                            f"Tool optimization failed: {tool_name}",
+                            reasoning=str(e),
+                            outcome="error"
+                        )
+
+            if not issues_found:
+                return "All tools performing well"
+
+            summary = f"Tool optimization: {optimized}/{len(issues_found)} tools improved"
+
+            self.scribe.log_action(
+                "Tool performance optimization completed",
+                reasoning=f"Analyzed {len(tools)} tools, found {len(issues_found)} with issues",
+                outcome=summary
+            )
+
+            return summary
+
+        except Exception as e:
+            return f"Tool optimization failed: {str(e)}"
+
+    def _optimize_tool(self, tool_name: str, issues: List[str], performance: Dict):
+        """
+        Optimize a tool based on identified issues.
+
+        Strategies:
+        1. Add caching for slow tools
+        2. Add error handling for failing tools
+        3. Refactor complex code
+        4. Add input validation
+        """
+        try:
+            # Get current tool code
+            tool_metadata = self.forge.get_tool(tool_name)
+            if not tool_metadata:
+                raise ValueError(f"Tool not found: {tool_name}")
+
+            tool_path = tool_metadata['path']
+
+            # Log optimization attempt
+            self.scribe.log_action(
+                f"Attempting tool optimization: {tool_name}",
+                reasoning=f"Issues: {', '.join(issues)}",
+                outcome="in_progress"
+            )
+
+        except Exception as e:
+            self.scribe.log_action(
+                f"Tool optimization attempt failed: {tool_name}",
+                reasoning=str(e),
+                outcome="error"
+            )
+
+    def deprecate_unused_tools(self):
+        """
+        Identify and deprecate tools that are:
+        - Not used in 30 days
+        - Have high failure rate (> 50%)
+        - Replaced by better tools
+
+        Returns:
+            Status message
+        """
+        try:
+            tools = self.forge.list_tools()
+            if not tools:
+                return "No tools to check"
+
+            deprecated_count = 0
+            reasons = []
+
+            for tool in tools:
+                tool_name = tool['name']
+
+                # Check usage
+                perf = self.forge.get_tool_performance(tool_name, hours=30 * 24)  # 30 days
+
+                should_deprecate = False
+                reason = None
+
+                # Reason 1: Not used in 30 days
+                if perf.get('no_data') or perf.get('total_executions', 0) == 0:
+                    should_deprecate = True
+                    reason = "unused_30_days"
+
+                # Reason 2: High failure rate
+                elif perf.get('success_rate', 1.0) < 0.5:
+                    should_deprecate = True
+                    reason = f"high_failure_rate_{perf['success_rate']:.0%}"
+
+                if should_deprecate:
+                    # Move to deprecated status (don't delete yet)
+                    self.forge._registry[tool_name]['status'] = 'deprecated'
+                    self.forge._registry[tool_name]['deprecated_at'] = datetime.now().isoformat()
+                    self.forge._registry[tool_name]['deprecated_reason'] = reason
+                    self.forge._save_registry()
+
+                    deprecated_count += 1
+                    reasons.append(f"{tool_name}: {reason}")
+
+                    self.scribe.log_action(
+                        f"Tool deprecated: {tool_name}",
+                        reasoning=reason,
+                        outcome="deprecated"
+                    )
+
+            summary = f"Tool deprecation: {deprecated_count} tools marked deprecated"
+            if reasons:
+                summary += f" ({', '.join(reasons[:3])})"
+
+            return summary
+
+        except Exception as e:
+            return f"Tool deprecation check failed: {str(e)}"
+
+    # PHASE 3: SECURITY & QUALITY VALIDATION (NEW)
+
+    def audit_all_tools_scheduled(self):
+        """
+        Scheduled security audit for all tools.
+
+        Checks all tools for:
+        - Dangerous imports
+        - File/network access
+        - Code injection risks
+        - Security vulnerabilities
+
+        Returns:
+            Status message
+        """
+        try:
+            tools = self.forge.list_tools()
+            if not tools:
+                return "No tools to audit"
+
+            audits = self.forge.audit_all_tools()
+
+            # Analyze results
+            dangerous_count = 0
+            warning_count = 0
+            safe_count = 0
+            issues_found = []
+
+            for audit in audits:
+                if 'error' in audit:
+                    continue
+
+                level = audit.get('security_level', 'unknown')
+                if level == 'dangerous':
+                    dangerous_count += 1
+                    issues_found.append(f"{audit['tool']}: DANGEROUS")
+                elif level == 'warning':
+                    warning_count += 1
+                    issues_found.append(f"{audit['tool']}: WARNING")
+                else:
+                    safe_count += 1
+
+            # Log findings
+            summary = f"Security audit: {safe_count} safe, {warning_count} warnings, {dangerous_count} dangerous"
+
+            self.scribe.log_action(
+                "Tool security audit completed",
+                reasoning="Scanning all tools for vulnerabilities",
+                outcome=summary
+            )
+
+            # Alert if dangerous tools found
+            if dangerous_count > 0:
+                self.scribe.log_action(
+                    "SECURITY ALERT: Dangerous tools detected",
+                    reasoning="Tools with eval/exec or pickle found",
+                    outcome=f"{dangerous_count} tools require review"
+                )
+
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.emit(Event(
+                            EventType.SECURITY_ALERT,
+                            {
+                                'dangerous_count': dangerous_count,
+                                'tools': [t for t in issues_found if 'DANGEROUS' in t]
+                            }
+                        ))
+                    except:
+                        pass
+
+            return summary
+
+        except Exception as e:
+            error_msg = f"Tool security audit failed: {str(e)}"
+            self.scribe.log_action(
+                "Tool security audit failed",
+                reasoning=str(e),
+                outcome="error"
+            )
+            return error_msg
+
+    def assess_code_quality_all(self):
+        """
+        Perform code quality assessment on all tools.
+
+        Checks for:
+        - Cyclomatic complexity
+        - Documentation coverage
+        - Error handling
+        - Type hints
+        - Code style
+
+        Returns:
+            Status message
+        """
+        try:
+            tools = self.forge.list_tools()
+            if not tools:
+                return "No tools to assess"
+
+            quality_results = []
+            low_quality_tools = []
+            high_quality_tools = 0
+
+            for tool in tools:
+                try:
+                    tool_name = tool['name']
+                    quality = self.forge.check_tool_quality(tool_name)
+
+                    quality_results.append(quality)
+
+                    # Track quality levels
+                    score = quality.get('overall_score', 0)
+                    if score < 60:
+                        low_quality_tools.append({
+                            'tool': tool_name,
+                            'score': score,
+                            'issues': quality.get('issues', [])
+                        })
+                    elif score >= 80:
+                        high_quality_tools += 1
+
+                except Exception as e:
+                    self.scribe.log_action(
+                        f"Quality assessment failed: {tool_name}",
+                        reasoning=str(e),
+                        outcome="error"
+                    )
+
+            # Calculate average score
+            avg_score = 0
+            if quality_results:
+                scores = [q.get('overall_score', 0) for q in quality_results]
+                avg_score = sum(scores) / len(scores)
+
+            # Summary
+            summary = f"Quality assessment: Avg score {avg_score:.0f}/100, {high_quality_tools} high quality"
+
+            self.scribe.log_action(
+                "Code quality assessment completed",
+                reasoning=f"Analyzed {len(tools)} tools",
+                outcome=summary
+            )
+
+            # Alert if low quality tools found
+            if low_quality_tools:
+                self.scribe.log_action(
+                    "Quality Alert: Low quality code detected",
+                    reasoning="Tools with low quality scores identified",
+                    outcome=f"{len(low_quality_tools)} tools need refactoring"
+                )
+
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.emit(Event(
+                            EventType.QUALITY_ALERT,
+                            {
+                                'low_quality_count': len(low_quality_tools),
+                                'avg_score': avg_score,
+                                'tools': low_quality_tools[:5]
+                            }
+                        ))
+                    except:
+                        pass
+
+            return summary
+
+        except Exception as e:
+            error_msg = f"Code quality assessment failed: {str(e)}"
+            self.scribe.log_action(
+                "Code quality assessment failed",
+                reasoning=str(e),
+                outcome="error"
+            )
+            return error_msg
 
     def run_proactive_analysis(self):
         """

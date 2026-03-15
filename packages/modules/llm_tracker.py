@@ -34,8 +34,7 @@ class LLMInteractionTracker:
         self.database_manager = database_manager
         self.scribe = scribe
         self.event_bus = event_bus
-        self.db = database_manager.get_connection()
-        
+
         # Subscribe to LLM events if event bus available
         if self.event_bus:
             try:
@@ -70,31 +69,32 @@ class LLMInteractionTracker:
         Returns:
             Interaction ID
         """
-        cursor = self.db.cursor()
-        
-        cursor.execute('''
-            INSERT INTO llm_interactions
-            (timestamp, provider, model, prompt, system_prompt, response,
-             tokens_used, cost, latency_ms, success, error, context, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            datetime.now().isoformat(),
-            provider,
-            model,
-            prompt[:5000],  # Truncate very long prompts
-            system_prompt[:2000] if system_prompt else None,
-            response[:10000],  # Truncate very long responses
-            tokens_used,
-            cost,
-            latency_ms,
-            1 if success else 0,
-            error[:500] if error else None,
-            context[:500] if context else None,
-            json.dumps(metadata) if metadata else None
-        ))
-        
-        self.db.commit()
-        interaction_id = cursor.lastrowid
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                INSERT INTO llm_interactions
+                (timestamp, provider, model, prompt, system_prompt, response,
+                 tokens_used, cost, latency_ms, success, error, context, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now().isoformat(),
+                provider,
+                model,
+                prompt[:5000],  # Truncate very long prompts
+                system_prompt[:2000] if system_prompt else None,
+                response[:10000],  # Truncate very long responses
+                tokens_used,
+                cost,
+                latency_ms,
+                1 if success else 0,
+                error[:500] if error else None,
+                context[:500] if context else None,
+                json.dumps(metadata) if metadata else None
+            ))
+
+            conn.commit()
+            interaction_id = cursor.lastrowid
         
         # Log summary
         if not success:
@@ -168,132 +168,134 @@ class LLMInteractionTracker:
         Returns:
             List of interaction records
         """
-        cursor = self.db.cursor()
-        
-        # Build query
-        query = 'SELECT * FROM llm_interactions WHERE 1=1'
-        params = []
-        
-        if provider:
-            query += ' AND provider = ?'
-            params.append(provider)
-        
-        if model:
-            query += ' AND model = ?'
-            params.append(model)
-        
-        if success_only:
-            query += ' AND success = 1'
-        
-        if hours:
-            since = (datetime.now() - timedelta(hours=hours)).isoformat()
-            query += ' AND timestamp > ?'
-            params.append(since)
-        
-        query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
-        params.extend([limit, offset])
-        
-        cursor.execute(query, params)
-        
-        interactions = []
-        columns = [desc[0] for desc in cursor.description]
-        
-        for row in cursor.fetchall():
-            interaction = dict(zip(columns, row))
-            # Parse JSON metadata
-            if interaction.get('metadata'):
-                try:
-                    interaction['metadata'] = json.loads(interaction['metadata'])
-                except:
-                    pass
-            interactions.append(interaction)
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            # Build query
+            query = 'SELECT * FROM llm_interactions WHERE 1=1'
+            params = []
+
+            if provider:
+                query += ' AND provider = ?'
+                params.append(provider)
+
+            if model:
+                query += ' AND model = ?'
+                params.append(model)
+
+            if success_only:
+                query += ' AND success = 1'
+
+            if hours:
+                since = (datetime.now() - timedelta(hours=hours)).isoformat()
+                query += ' AND timestamp > ?'
+                params.append(since)
+
+            query += ' ORDER BY timestamp DESC LIMIT ? OFFSET ?'
+            params.extend([limit, offset])
+
+            cursor.execute(query, params)
+
+            interactions = []
+            columns = [desc[0] for desc in cursor.description]
+
+            for row in cursor.fetchall():
+                interaction = dict(zip(columns, row))
+                # Parse JSON metadata
+                if interaction.get('metadata'):
+                    try:
+                        interaction['metadata'] = json.loads(interaction['metadata'])
+                    except:
+                        pass
+                interactions.append(interaction)
         
         return interactions
     
     def get_interaction_stats(self, hours: int = 24) -> Dict:
         """
         Get statistics about LLM usage.
-        
+
         Args:
             hours: Time period to analyze
-            
+
         Returns:
             Dict with statistics
         """
-        cursor = self.db.cursor()
-        since = (datetime.now() - timedelta(hours=hours)).isoformat()
-        
-        # Total interactions
-        cursor.execute('''
-            SELECT COUNT(*), SUM(tokens_used), SUM(cost), AVG(latency_ms)
-            FROM llm_interactions
-            WHERE timestamp > ?
-        ''', (since,))
-        
-        row = cursor.fetchone()
-        total_count = row[0] or 0
-        total_tokens = row[1] or 0
-        total_cost = row[2] or 0.0
-        avg_latency = row[3] or 0
-        
-        # Success rate
-        cursor.execute('''
-            SELECT COUNT(*) FROM llm_interactions
-            WHERE timestamp > ? AND success = 1
-        ''', (since,))
-        
-        success_count = cursor.fetchone()[0] or 0
-        success_rate = (success_count / total_count) if total_count > 0 else 0
-        
-        # By provider
-        cursor.execute('''
-            SELECT provider, COUNT(*), SUM(tokens_used), SUM(cost)
-            FROM llm_interactions
-            WHERE timestamp > ?
-            GROUP BY provider
-        ''', (since,))
-        
-        by_provider = {}
-        for row in cursor.fetchall():
-            by_provider[row[0]] = {
-                'count': row[1],
-                'tokens': row[2] or 0,
-                'cost': row[3] or 0.0
-            }
-        
-        # By model
-        cursor.execute('''
-            SELECT model, COUNT(*), SUM(tokens_used), SUM(cost)
-            FROM llm_interactions
-            WHERE timestamp > ?
-            GROUP BY model
-        ''', (since,))
-        
-        by_model = {}
-        for row in cursor.fetchall():
-            by_model[row[0]] = {
-                'count': row[1],
-                'tokens': row[2] or 0,
-                'cost': row[3] or 0.0
-            }
-        
-        # Recent errors
-        cursor.execute('''
-            SELECT timestamp, provider, model, error
-            FROM llm_interactions
-            WHERE timestamp > ? AND success = 0
-            ORDER BY timestamp DESC
-            LIMIT 10
-        ''', (since,))
-        
-        recent_errors = []
-        for row in cursor.fetchall():
-            recent_errors.append({
-                'timestamp': row[0],
-                'provider': row[1],
-                'model': row[2],
-                'error': row[3]
-            })
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            since = (datetime.now() - timedelta(hours=hours)).isoformat()
+
+            # Total interactions
+            cursor.execute('''
+                SELECT COUNT(*), SUM(tokens_used), SUM(cost), AVG(latency_ms)
+                FROM llm_interactions
+                WHERE timestamp > ?
+            ''', (since,))
+
+            row = cursor.fetchone()
+            total_count = row[0] or 0
+            total_tokens = row[1] or 0
+            total_cost = row[2] or 0.0
+            avg_latency = row[3] or 0
+
+            # Success rate
+            cursor.execute('''
+                SELECT COUNT(*) FROM llm_interactions
+                WHERE timestamp > ? AND success = 1
+            ''', (since,))
+
+            success_count = cursor.fetchone()[0] or 0
+            success_rate = (success_count / total_count) if total_count > 0 else 0
+
+            # By provider
+            cursor.execute('''
+                SELECT provider, COUNT(*), SUM(tokens_used), SUM(cost)
+                FROM llm_interactions
+                WHERE timestamp > ?
+                GROUP BY provider
+            ''', (since,))
+
+            by_provider = {}
+            for row in cursor.fetchall():
+                by_provider[row[0]] = {
+                    'count': row[1],
+                    'tokens': row[2] or 0,
+                    'cost': row[3] or 0.0
+                }
+
+            # By model
+            cursor.execute('''
+                SELECT model, COUNT(*), SUM(tokens_used), SUM(cost)
+                FROM llm_interactions
+                WHERE timestamp > ?
+                GROUP BY model
+            ''', (since,))
+
+            by_model = {}
+            for row in cursor.fetchall():
+                by_model[row[0]] = {
+                    'count': row[1],
+                    'tokens': row[2] or 0,
+                    'cost': row[3] or 0.0
+                }
+
+            # Recent errors
+            cursor.execute('''
+                SELECT timestamp, provider, model, error
+                FROM llm_interactions
+                WHERE timestamp > ? AND success = 0
+                ORDER BY timestamp DESC
+                LIMIT 10
+            ''', (since,))
+
+            recent_errors = []
+            for row in cursor.fetchall():
+                recent_errors.append({
+                    'timestamp': row[0],
+                    'provider': row[1],
+                    'model': row[2],
+                    'error': row[3]
+                })
         
         return {
             'period_hours': hours,
@@ -310,22 +312,23 @@ class LLMInteractionTracker:
     def get_interaction_by_id(self, interaction_id: int) -> Optional[Dict]:
         """
         Get specific interaction by ID.
-        
+
         Args:
             interaction_id: Interaction ID
-            
+
         Returns:
             Interaction record or None
         """
-        cursor = self.db.cursor()
-        
-        cursor.execute('SELECT * FROM llm_interactions WHERE id = ?', (interaction_id,))
-        row = cursor.fetchone()
-        
-        if not row:
-            return None
-        
-        columns = [desc[0] for desc in cursor.description]
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT * FROM llm_interactions WHERE id = ?', (interaction_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            columns = [desc[0] for desc in cursor.description]
         interaction = dict(zip(columns, row))
         
         # Parse JSON metadata
@@ -340,90 +343,93 @@ class LLMInteractionTracker:
     def search_interactions(self, search_term: str, limit: int = 50) -> List[Dict]:
         """
         Search interactions by prompt or response content.
-        
+
         Args:
             search_term: Text to search for
             limit: Max results
-            
+
         Returns:
             List of matching interactions
         """
-        cursor = self.db.cursor()
-        
-        search_pattern = f"%{search_term}%"
-        
-        cursor.execute('''
-            SELECT * FROM llm_interactions
-            WHERE prompt LIKE ? OR response LIKE ? OR context LIKE ?
-            ORDER BY timestamp DESC
-            LIMIT ?
-        ''', (search_pattern, search_pattern, search_pattern, limit))
-        
-        interactions = []
-        columns = [desc[0] for desc in cursor.description]
-        
-        for row in cursor.fetchall():
-            interaction = dict(zip(columns, row))
-            if interaction.get('metadata'):
-                try:
-                    interaction['metadata'] = json.loads(interaction['metadata'])
-                except:
-                    pass
-            interactions.append(interaction)
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+
+            search_pattern = f"%{search_term}%"
+
+            cursor.execute('''
+                SELECT * FROM llm_interactions
+                WHERE prompt LIKE ? OR response LIKE ? OR context LIKE ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+            ''', (search_pattern, search_pattern, search_pattern, limit))
+
+            interactions = []
+            columns = [desc[0] for desc in cursor.description]
+
+            for row in cursor.fetchall():
+                interaction = dict(zip(columns, row))
+                if interaction.get('metadata'):
+                    try:
+                        interaction['metadata'] = json.loads(interaction['metadata'])
+                    except:
+                        pass
+                interactions.append(interaction)
         
         return interactions
     
     def get_expensive_interactions(self, hours: int = 24, limit: int = 20) -> List[Dict]:
         """
         Get most expensive LLM interactions.
-        
+
         Useful for cost optimization analysis.
-        
+
         Args:
             hours: Time period
             limit: Max results
-            
+
         Returns:
             List of expensive interactions
         """
-        cursor = self.db.cursor()
-        since = (datetime.now() - timedelta(hours=hours)).isoformat()
-        
-        cursor.execute('''
-            SELECT * FROM llm_interactions
-            WHERE timestamp > ?
-            ORDER BY cost DESC
-            LIMIT ?
-        ''', (since, limit))
-        
-        interactions = []
-        columns = [desc[0] for desc in cursor.description]
-        
-        for row in cursor.fetchall():
-            interactions.append(dict(zip(columns, row)))
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            since = (datetime.now() - timedelta(hours=hours)).isoformat()
+
+            cursor.execute('''
+                SELECT * FROM llm_interactions
+                WHERE timestamp > ?
+                ORDER BY cost DESC
+                LIMIT ?
+            ''', (since, limit))
+
+            interactions = []
+            columns = [desc[0] for desc in cursor.description]
+
+            for row in cursor.fetchall():
+                interactions.append(dict(zip(columns, row)))
         
         return interactions
     
     def cleanup_old_interactions(self, days: int = 30) -> int:
         """
         Clean up old interactions to save space.
-        
+
         Args:
             days: Keep interactions newer than this
-            
+
         Returns:
             Number of interactions deleted
         """
-        cursor = self.db.cursor()
-        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
-        
-        cursor.execute('''
-            DELETE FROM llm_interactions
-            WHERE timestamp < ?
-        ''', (cutoff,))
-        
-        self.db.commit()
-        deleted = cursor.rowcount
+        with self.database_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+
+            cursor.execute('''
+                DELETE FROM llm_interactions
+                WHERE timestamp < ?
+            ''', (cutoff,))
+
+            conn.commit()
+            deleted = cursor.rowcount
         
         self.scribe.log_action(
             f"Cleaned up old LLM interactions",

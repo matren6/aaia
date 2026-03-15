@@ -340,16 +340,74 @@ class CapabilityDiscovery:
 
         return priorities
 
-    def mark_capability_developed(self, capability_name: str) -> None:
-        """Mark a capability as developed"""
-        self.scribe.db.execute('''
-            UPDATE capability_knowledge
-            SET status = 'developed', developed_at = ?
-            WHERE capability = ?
-        ''', (datetime.now().isoformat(), capability_name))
+    def mark_capability_developed(self, capability_name: str, tool_name: str = None) -> None:
+        """Mark a capability as developed and optionally link to tool"""
+        try:
+            self.scribe.db.execute('''
+                UPDATE capability_knowledge
+                SET status = 'developed', developed_at = ?
+                WHERE capability = ?
+            ''', (datetime.now().isoformat(), capability_name))
 
-        self.scribe.log_action(
-            "Capability developed",
-            f"{capability_name} marked as developed",
-            "capability_developed"
-        )
+            # Link capability to tool if provided
+            if tool_name:
+                try:
+                    self.scribe.db.execute('''
+                        INSERT INTO tool_capabilities (
+                            tool_name, capability_name, capability_type, 
+                            confidence, discovered_at
+                        ) VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        tool_name,
+                        capability_name,
+                        'automated',
+                        0.8,
+                        datetime.now().isoformat()
+                    ))
+                except Exception:
+                    # Table may not exist yet, skip linking
+                    pass
+
+            self.scribe.log_action(
+                "Capability developed",
+                f"{capability_name} marked as developed" + (f" (Tool: {tool_name})" if tool_name else ""),
+                "capability_developed"
+            )
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Failed to mark capability developed",
+                reasoning=str(e),
+                outcome="error"
+            )
+
+    def get_undeveloped_capabilities(self) -> List[Dict]:
+        """Get capabilities that have been identified but not developed"""
+        try:
+            rows = self.scribe.db.query('''
+                SELECT capability, description, value, complexity, dependencies, status
+                FROM capability_knowledge
+                WHERE status IN ('discovered', 'recommended')
+                ORDER BY value DESC
+            ''')
+
+            capabilities = []
+            for row in rows:
+                capabilities.append({
+                    'name': row['capability'],
+                    'description': row['description'],
+                    'value': row['value'],
+                    'complexity': row['complexity'],
+                    'dependencies': json.loads(row['dependencies']) if row['dependencies'] else [],
+                    'status': row['status']
+                })
+
+            return capabilities
+        except Exception as e:
+            self.scribe.log_action(
+                "Failed to get undeveloped capabilities",
+                reasoning=str(e),
+                outcome="error"
+            )
+            return []
+

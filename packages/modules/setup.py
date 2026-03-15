@@ -275,33 +275,40 @@ class SystemBuilder:
             ),
             singleton=True)
 
-        # Web Server (UI Dashboard)
-        from modules.web_server import WebServer
-        from modules.web_dashboard_data import DashboardDataAggregator
+        # Web Server (UI Dashboard) - optional dependency
+        try:
+            from modules.web_server import WebServer
+            from modules.web_dashboard_data import DashboardDataAggregator
 
-        # Register data aggregator first
-        self._container.register_factory('DashboardDataAggregator',
-            lambda c: DashboardDataAggregator(
-                scribe=c.get('Scribe'),
-                economics=c.get('EconomicManager'),
-                goals=c.get('GoalSystem'),
-                scheduler=c.get('AutonomousScheduler'),
-                hierarchy=c.get('HierarchyManager'),
-                master_model=c.get('MasterModelManager'),
-                container=c,
-                config=c.get('SystemConfig')
-            ),
-            singleton=True)
+            # Register data aggregator first
+            self._container.register_factory('DashboardDataAggregator',
+                lambda c: DashboardDataAggregator(
+                    scribe=c.get('Scribe'),
+                    economics=c.get('EconomicManager'),
+                    goals=c.get('GoalSystem'),
+                    scheduler=c.get('AutonomousScheduler'),
+                    hierarchy=c.get('HierarchyManager'),
+                    master_model=c.get('MasterModelManager'),
+                    container=c,
+                    config=c.get('SystemConfig')
+                ),
+                singleton=True)
 
-        # Register web server with data aggregator
-        self._container.register_factory('WebServer',
-            lambda c: WebServer(
-                event_bus=c.get('EventBus'),
-                container=c,
-                config=c.get('SystemConfig'),
-                data_aggregator=c.get('DashboardDataAggregator')
-            ),
-            singleton=True)
+            # Register web server with data aggregator
+            self._container.register_factory('WebServer',
+                lambda c: WebServer(
+                    event_bus=c.get('EventBus'),
+                    container=c,
+                    config=c.get('SystemConfig'),
+                    data_aggregator=c.get('DashboardDataAggregator')
+                ),
+                singleton=True)
+        except ImportError as e:
+            print(f"[INFO] Web server dependencies not available: {e}")
+            print("[INFO] Web dashboard will be disabled. Install flask, flask-socketio, flask-cors to enable.")
+            # Register stub factories that return None
+            self._container.register_factory('DashboardDataAggregator', lambda c: None, singleton=True)
+            self._container.register_factory('WebServer', lambda c: None, singleton=True)
 
         # MarginalAnalyzer (Phase 2)
         self._container.register_factory('MarginalAnalyzer',

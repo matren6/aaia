@@ -71,33 +71,40 @@ class Scribe:
                 self.db_path = db_path
                 self.db = get_database_manager(db_path)
             except Exception:
-                # Fallback to simple sqlite connection wrapper
+                # Fallback to simple sqlite connection wrapper with proper timeouts
                 import sqlite3
                 class _SimpleDB:
                     def __init__(self, path):
                         self._path = path
                     def execute(self, sql, params=()):
-                        conn = sqlite3.connect(self._path)
-                        cur = conn.cursor()
-                        cur.execute(sql, params)
-                        conn.commit()
-                        conn.close()
+                        conn = sqlite3.connect(self._path, timeout=30.0)
+                        try:
+                            cur = conn.cursor()
+                            cur.execute(sql, params)
+                            conn.commit()
+                        finally:
+                            conn.close()
                     def query(self, sql, params=()):
-                        conn = sqlite3.connect(self._path)
-                        conn.row_factory = sqlite3.Row
-                        cur = conn.cursor()
-                        cur.execute(sql, params)
-                        rows = cur.fetchall()
-                        conn.close()
+                        conn = sqlite3.connect(self._path, timeout=30.0)
+                        try:
+                            conn.row_factory = sqlite3.Row
+                            cur = conn.cursor()
+                            cur.execute(sql, params)
+                            rows = cur.fetchall()
+                        finally:
+                            conn.close()
                         return rows
                     def query_one(self, sql, params=()):
-                        conn = sqlite3.connect(self._path)
-                        conn.row_factory = sqlite3.Row
-                        cur = conn.cursor()
-                        cur.execute(sql, params)
-                        row = cur.fetchone()
-                        conn.close()
+                        conn = sqlite3.connect(self._path, timeout=30.0)
+                        try:
+                            conn.row_factory = sqlite3.Row
+                            cur = conn.cursor()
+                            cur.execute(sql, params)
+                            row = cur.fetchone()
+                        finally:
+                            conn.close()
                         return row
+
                 if db_path is None:
                     db_path = "data/scribe.db"
                 # Ensure self.db_path reflects resolved path
@@ -173,12 +180,13 @@ class Scribe:
                 "INSERT INTO action_log (action, reasoning, outcome, cost, metadata) VALUES (?, ?, ?, ?, ?)",
                 (action, reasoning, outcome, cost, metadata)
             )
-        except Exception as e:
+        except sqlite3.OperationalError as e:
             error_msg = str(e).lower()
 
-            # Only fallback if it's specifically about metadata column
-            if 'metadata' in error_msg or 'column' in error_msg:
+            # Check if it's a metadata column issue
+            if 'metadata' in error_msg or 'no such column' in error_msg:
                 try:
+                    # Try without metadata column (for old databases)
                     self.db.execute(
                         "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
                         (action, reasoning, outcome, cost)
@@ -188,24 +196,32 @@ class Scribe:
                     print(f"[ERROR] Failed to log action '{action}': {e2}")
                     print(f"[ERROR] Database path: {self.db_path}")
                     print(f"[ERROR] Original error: {e}")
-                    raise
+                    # Don't re-raise - log action failure shouldn't crash system
+                    return
+            elif 'database is locked' in error_msg:
+                # Database locked - wait and retry once
+                import time
+                time.sleep(0.5)
+                try:
+                    self.db.execute(
+                        "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
+                        (action, reasoning, outcome, cost)
+                    )
+                    return
+                except Exception as e3:
+                    print(f"[ERROR] Failed to log action '{action}' after retry: {e3}")
+                    # Don't re-raise - log action failure shouldn't crash system
+                    return
             else:
-                # Some other error - print and raise
+                # Some other error
                 print(f"[ERROR] Failed to log action '{action}': {e}")
                 print(f"[ERROR] Database path: {self.db_path}")
-
-                # Check if table exists
-                try:
-                    conn = sqlite3.connect(self.db_path)
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='action_log'")
-                    if not cursor.fetchone():
-                        print(f"[ERROR] Table 'action_log' does not exist in database!")
-                    conn.close()
-                except:
-                    pass
-
-                raise
+                # Don't re-raise - log action failure shouldn't crash system
+                return
+        except Exception as e:
+            print(f"[ERROR] Unexpected error logging action '{action}': {e}")
+            # Don't re-raise - log action failure shouldn't crash system
+            return
 
     def log_system_event(self, event_type: str, details=None, **kwargs):
         """Log a system event (compatibility method)

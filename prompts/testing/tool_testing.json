@@ -1,0 +1,95 @@
+[
+  {
+    "name": "tool_test_generation",
+    "category": "testing",
+    "description": "Generate comprehensive test cases for a tool",
+    "template": "Generate 5 comprehensive test cases for the following tool:\n\nTool Name: {tool_name}\nDescription: {tool_description}\n\nFor each test case, provide:\n- TEST: [descriptive name]\n- INPUT: [input parameters as JSON]\n- EXPECTED: [expected output or behavior]\n- TYPE: [unit/integration/edge_case]\n\nFocus on:\n1. Normal use cases (happy path)\n2. Edge cases (empty input, null, extremes)\n3. Error conditions\n4. Integration scenarios\n5. Performance scenarios\n\nExample format:\nTEST: Basic functionality\nINPUT: {\"data\": [1, 2, 3], \"operation\": \"sum\"}\nEXPECTED: 6\nTYPE: unit\n\nProvide 5 diverse test cases covering different scenarios.",
+    "system_prompt": "You are a test engineer specializing in Python unit tests. Generate thorough, realistic test cases that validate functionality and catch edge cases. Be specific and precise.",
+    "parameters": [
+      {
+        "name": "tool_name",
+        "type": "string",
+        "required": true,
+        "description": "Name of the tool to generate tests for"
+      },
+      {
+        "name": "tool_description",
+        "type": "string",
+        "required": true,
+        "description": "Description of what the tool does"
+      }
+    ],
+    "metadata": {
+      "version": "1.0",
+      "author": "system",
+      "created_at": "2026-03-15",
+      "tags": ["testing", "quality", "validation"]
+    }
+  },
+  {
+    "name": "tool_optimization",
+    "category": "optimization",
+    "description": "Optimize tool code to address performance or quality issues",
+    "template": "Optimize the following Python tool to address performance issues:\n\nTool Name: {tool_name}\n\nCurrent Code:\n```python\n{current_code}\n```\n\nIdentified Issues:\n{issues}\n\nPerformance Data:\n{performance_data}\n\nGenerate an optimized version that:\n1. Maintains the same functionality and API\n2. Addresses all identified issues\n3. Improves execution performance\n4. Adds better error handling\n5. Includes input validation\n6. Adds caching if beneficial\n7. Maintains code readability\n\nReturn ONLY the optimized Python code with the execute() function. No explanations, just code.",
+    "system_prompt": "You are a Python performance optimization expert. Generate efficient, production-ready code that solves the identified issues while maintaining functionality. Focus on measurable performance improvements.",
+    "parameters": [
+      {
+        "name": "tool_name",
+        "type": "string",
+        "required": true,
+        "description": "Name of the tool being optimized"
+      },
+      {
+        "name": "current_code",
+        "type": "string",
+        "required": true,
+        "description": "Current tool implementation code"
+      },
+      {
+        "name": "issues",
+        "type": "string",
+        "required": true,
+        "description": "Comma-separated list of identified issues"
+      },
+      {
+        "name": "performance_data",
+        "type": "string",
+        "required": true,
+        "description": "JSON string with performance metrics"
+      }
+    ],
+    "metadata": {
+      "version": "1.0",
+      "author": "system",
+      "created_at": "2026-03-15",
+      "tags": ["optimization", "performance", "refactoring"]
+    }
+  },
+  {
+    "name": "tool_security_audit",
+    "category": "security",
+    "description": "Analyze tool code for security vulnerabilities",
+    "template": "Perform a security audit of the following Python tool:\n\nTool Name: {tool_name}\n\nCode:\n```python\n{code}\n```\n\nAnalyze for:\n1. Dangerous imports (os, subprocess, eval, exec)\n2. File system access risks\n3. Network access risks\n4. Code injection vulnerabilities\n5. Resource exhaustion risks\n6. Input validation issues\n\nProvide assessment in this format:\n\nSECURITY LEVEL: [SAFE/WARNING/DANGEROUS]\n\nVULNERABILITIES:\n- [List each vulnerability found]\n\nRISKS:\n- [List potential risks]\n\nRECOMMENDATIONS:\n- [List specific security improvements]\n\nSAFE FOR PRODUCTION: [YES/NO/WITH_RESTRICTIONS]",
+    "system_prompt": "You are a security expert specializing in Python code auditing. Be thorough and conservative - identify all potential security risks.",
+    "parameters": [
+      {
+        "name": "tool_name",
+        "type": "string",
+        "required": true,
+        "description": "Name of the tool being audited"
+      },
+      {
+        "name": "code",
+        "type": "string",
+        "required": true,
+        "description": "Complete tool code to audit"
+      }
+    ],
+    "metadata": {
+      "version": "1.0",
+      "author": "system",
+      "created_at": "2026-03-15",
+      "tags": ["security", "audit", "validation"]
+    }
+  }
+]

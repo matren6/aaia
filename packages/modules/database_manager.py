@@ -88,6 +88,8 @@ class DatabaseManager:
         with self._lock:
             if self._connection is None:
                 self._connection = sqlite3.connect(self.db_path, check_same_thread=False, timeout=30.0)
+                # Enable WAL mode for better concurrency
+                self._connection.execute("PRAGMA journal_mode=WAL")
                 self._connection.row_factory = sqlite3.Row
 
             yield self._connection

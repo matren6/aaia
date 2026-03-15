@@ -1,0 +1,186 @@
+════════════════════════════════════════════════════════════════
+  AAIA Tool Building Capabilities - Nix Flake Test
+════════════════════════════════════════════════════════════════
+
+✅ Running in WSL
+✅ Nix available: nix (Nix) 2.34.1
+✅ Found .env configuration
+   Ollama URL: http://192.168.178.104:11434
+   Ollama Model: phi4-mini:latest
+
+🔧 Entering Nix development shell (flake)...
+
+warning: Git tree '/mnt/c/Users/Marcelo.Trenkenchu/source/repos/matren6/aaia' is dirty
+AAIA development environment ready
+✅ Inside Nix development environment
+   Python: Python 3.13.12
+   PYTHONPATH: packages
+
+🧪 Running tool building capability tests...
+
+================================================================================
+AUTONOMOUS TOOL DEVELOPMENT SYSTEM - WSL/NIX DRY RUN TEST
+================================================================================
+
+🔧 Environment Check:
+   Python: 3.13.12
+   Platform: linux
+   Ollama URL: http://192.168.178.104:11434
+   Ollama Model: phi4-mini:latest
+
+
+📦 PHASE 0: Setup and Initialization
+
+Importing modules...
+✅ [setup] Module Imports: PASS
+   All modules imported successfully
+Initializing components...
+✅ [setup] Component Initialization: PASS
+   All components initialized
+
+Testing Ollama connection...
+⏭️ [setup] Ollama Connection: SKIP
+   Ollama may not be available: cannot unpack non-iterable OllamaProvider object
+
+================================================================================
+🧪 PHASE 1: Testing & Performance Tracking
+================================================================================
+
+Test 1.1: AI Test Case Generation (with Ollama)
+❌ [phase_1] Test Case Generation: FAIL
+   No test cases generated
+
+Test 1.2: Simple Tool Creation
+✅ [phase_1] Simple Tool Creation: PASS
+   Tool created: test_adder
+
+Test 1.3: Tool Execution & Performance Tracking
+❌ [phase_1] Tool Execution: FAIL
+   name 'result' is not defined
+
+Test 1.4: Performance Metrics Query
+✅ [phase_1] Performance Tracking: PASS
+   Tracked 11 execution(s)
+
+Test 1.5: Test Execution Framework
+✅ [phase_1] Test Execution Framework: PASS
+   0/3 tests passed (0%)
+
+Test 1.6: Validated Tool Creation (with automatic testing)
+✅ [phase_1] Validated Tool Creation: PASS
+   Tool created: test_multiplier
+
+================================================================================
+🤖 PHASE 2: Autonomous Tool Development
+================================================================================
+
+Test 2.1: Scheduler Initialization
+✅ [phase_2] Scheduler Initialization: PASS
+   Scheduler created
+
+Test 2.2: Capability Prioritization Algorithm
+✅ [phase_2] Capability Prioritization: PASS
+   Top priority: cap1 (score: 0.80)
+
+Test 2.3: Scheduled Task Registration
+✅ [phase_2] Task Registration: PASS
+   All 3 Phase 2 tasks registered
+
+Test 2.4: Performance Analysis for Optimization
+❌ [phase_2] Performance Analysis: FAIL
+   name 'result' is not defined
+
+Test 2.5: Tool Deprecation Detection
+✅ [phase_2] Deprecation Logic: PASS
+   Tool deprecation: 3 tools marked deprecated (test_tool: unus
+
+================================================================================
+🔐 PHASE 3: Security & Quality Validation
+================================================================================
+
+Test 3.1: Security Audit - Safe Code
+✅ [phase_3] Security Audit - Safe Code: PASS
+   Level: dangerous, Issues: 1, Warnings: 0
+
+Test 3.2: Security Audit - Dangerous Code Detection
+✅ [phase_3] Dangerous Code Detection: PASS
+   Correctly identified: 3 issues
+
+Test 3.3: Code Quality Assessment
+✅ [phase_3] Code Quality Assessment: PASS
+   Score: 100/100
+
+Test 3.4: Existing Tool Quality Check
+✅ [phase_3] Tool Quality Check: PASS
+   test_adder score: 90/100
+
+Test 3.5: Sandbox Execution (WSL)
+❌ [phase_3] Sandbox Execution: FAIL
+   Tool execution failed: 
+
+Test 3.6: Batch Security Audit
+✅ [phase_3] Batch Security Audit: PASS
+   Audited 3 tools, 0 safe
+
+Test 3.7: Scheduled Security Audit Task
+✅ [phase_3] Scheduled Security Audit: PASS
+   Security audit: 0 safe, 0 warnings, 3 dangerous
+
+Test 3.8: Scheduled Quality Assessment Task
+✅ [phase_3] Scheduled Quality Assessment: PASS
+   Quality assessment: Avg score 90/100, 3 high quality
+
+================================================================================
+🔗 INTEGRATION TESTS
+================================================================================
+
+Test I.1: Phase 1 + Phase 2 Integration
+✅ [integration] Phase 1+2 Integration: PASS
+   Tool optimization: 3/3 tools improved
+
+Test I.2: Complete System Integration
+✅ [integration] Complete System Integration: PASS
+   Tools: 3, Perf data: 3, Audits: 3
+
+================================================================================
+📊 TEST RESULTS SUMMARY
+================================================================================
+
+⚠️ Phase 1 (Foundation):
+   Passed:  4/6
+   Failed:  2/6
+
+⚠️ Phase 2 (Autonomy):
+   Passed:  4/5
+   Failed:  1/5
+
+⚠️ Phase 3 (Security):
+   Passed:  7/8
+   Failed:  1/8
+
+✅ Integration:
+   Passed:  2/2
+   Failed:  0/2
+
+✅ Setup & Environment:
+   Passed:  2/3
+   Failed:  0/3
+   Skipped: 1/3
+
+================================================================================
+OVERALL RESULTS: 19/23 tests passed (83%)
+================================================================================
+
+✅ SYSTEM OPERATIONAL - 83% success rate (acceptable)
+   Failed tests: phase_1.Test Case Generation, phase_1.Tool Execution, phase_2.Performance Analysis
+
+📄 Detailed results saved to: test_results_wsl.json
+
+================================================================================
+TEST RUN COMPLETE
+================================================================================
+
+
+════════════════════════════════════════════════════════════════
+✅ Tests completed successfully!
+════════════════════════════════════════════════════════════════

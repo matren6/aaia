@@ -247,7 +247,7 @@ class PromptOptimizer:
             # Call the model
             response = self.router.generate(
                 prompt_data["prompt"],
-                prompt_data["system_prompt"],
+                system_prompt=prompt_data["system_prompt"],
                 task_type="optimization",
                 complexity="high"
             )
