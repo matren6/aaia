@@ -102,6 +102,18 @@ class Arbiter:
             data={'message': 'Arbiter ready'},
             source='Arbiter'
         ))
+
+        # Log startup to database
+        try:
+            self.container.get('Scribe').log_action(
+                action="system_startup",
+                reasoning="AAIA application started successfully",
+                outcome="System initialized and ready",
+                cost=0.0
+            )
+            print("[INFO] System startup logged to database")
+        except Exception as e:
+            print(f"[WARNING] Failed to log system startup: {e}")
         
     def _init_container(self):
         """Initialize using dependency injection container."""

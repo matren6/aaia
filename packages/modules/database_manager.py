@@ -143,23 +143,36 @@ class DatabaseManager:
         return [dict(row) for row in results]
 
 
-# Global instance
-_db_manager = None
+# Global instances - one per database path
+_db_managers = {}
 _db_manager_lock = Lock()
 
 def get_database_manager(db_path: str = None) -> DatabaseManager:
-    global _db_manager
-    if _db_manager is None:
-        with _db_manager_lock:
-            if _db_manager is None:
-                if db_path is None:
-                    raise ValueError("db_path must be provided on first call")
-                _db_manager = DatabaseManager(db_path)
-    return _db_manager
+    """Get or create database manager for given path."""
+    if db_path is None:
+        raise ValueError("db_path must be provided")
 
-def reset_database_manager():
-    global _db_manager
+    # Normalize path
+    db_path = str(Path(db_path).resolve())
+
+    if db_path not in _db_managers:
+        with _db_manager_lock:
+            if db_path not in _db_managers:
+                _db_managers[db_path] = DatabaseManager(db_path)
+
+    return _db_managers[db_path]
+
+def reset_database_manager(db_path: str = None):
+    """Reset database manager for given path or all."""
     with _db_manager_lock:
-        if _db_manager:
-            _db_manager.close()
-        _db_manager = None
+        if db_path:
+            db_path = str(Path(db_path).resolve())
+            if db_path in _db_managers:
+                _db_managers[db_path].close()
+                del _db_managers[db_path]
+        else:
+            # Reset all
+            for mgr in _db_managers.values():
+                mgr.close()
+            _db_managers.clear()
+

@@ -438,7 +438,9 @@ class AutonomousScheduler:
                             print(f"[DEBUG] scribe.log_action failed before executing {task.get('name')}: {e}")
 
                         # Execute task
+                        print(f"[DEBUG] Executing task function: {task['name']}")
                         result = task["function"]()
+                        print(f"[DEBUG] Task {task['name']} completed with result: {str(result)[:100]}")
                         task["last_run"] = now
 
                         # Calculate next run time
@@ -449,23 +451,30 @@ class AutonomousScheduler:
 
                         # Log completion
                         try:
+                            print(f"[DEBUG] Logging task completion to database...")
                             self.scribe.log_action(
-                                f"Completed task: {task['name']}",
-                                f"Result: {str(result)[:100]}",
-                                "completed"
+                                action=f"task_{task['name']}",
+                                reasoning=f"Autonomous task execution",
+                                outcome=f"Success: {str(result)[:200]}" if result else "Success",
+                                cost=0.01
                             )
+                            print(f"[DEBUG] Successfully logged task {task['name']} to database")
                         except Exception as e:
-                            print(f"[DEBUG] scribe.log_action failed after executing {task.get('name')}: {e}")
+                            print(f"[ERROR] Failed to log task {task['name']}: {type(e).__name__}: {e}")
+                            import traceback
+                            traceback.print_exc()
 
                     except Exception as e:
+                        print(f"[ERROR] Task {task['name']} execution failed: {type(e).__name__}: {e}")
                         try:
                             self.scribe.log_action(
-                                f"Task failed: {task['name']}",
-                                f"Error: {str(e)}",
-                                "error"
+                                action=f"task_{task['name']}",
+                                reasoning=f"Autonomous task execution",
+                                outcome=f"Error: {str(e)[:200]}",
+                                cost=0.01
                             )
-                        except Exception:
-                            print(f"[ERROR] Task {task.get('name')} failed and logging also failed: {e}")
+                        except Exception as log_err:
+                            print(f"[ERROR] Failed to log task error for {task['name']}: {log_err}")
 
             # Sleep for 1 minute before checking again
             time.sleep(60)

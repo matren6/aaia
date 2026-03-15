@@ -103,24 +103,109 @@ class Scribe:
                 # Ensure self.db_path reflects resolved path
                 self.db_path = db_path
                 self.db = _SimpleDB(db_path)
-        
+
+        # Ensure database has valid schema
+        if not self._initialize_database():
+            print(f"[WARNING] Database {self.db_path} may not have valid schema!")
+
     # Database schema and migrations are handled by DatabaseManager
-        
+
+    def _has_valid_schema(self) -> bool:
+        """Check if database has required tables."""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Check if action_log table exists with required columns
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='action_log'
+            """)
+
+            if not cursor.fetchone():
+                conn.close()
+                return False
+
+            # Verify table has required columns
+            cursor.execute("PRAGMA table_info(action_log)")
+            columns = {row[1] for row in cursor.fetchall()}
+            required = {'action', 'reasoning', 'outcome', 'cost'}
+
+            conn.close()
+            return required.issubset(columns)
+
+        except Exception as e:
+            print(f"[WARNING] Schema validation failed: {e}")
+            return False
+
+    def _initialize_database(self) -> bool:
+        """Initialize database with schema if needed."""
+        from pathlib import Path
+
+        if not Path(self.db_path).exists() or Path(self.db_path).stat().st_size == 0:
+            print(f"[INFO] Database {self.db_path} is empty, initializing...")
+
+            # Ensure parent directory exists
+            Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+
+            # Initialize with migrations
+            try:
+                from modules.database_manager import DatabaseManager
+                db_mgr = DatabaseManager(self.db_path)
+                db_mgr.close()
+                print(f"[INFO] Database {self.db_path} initialized with schema")
+                return True
+            except Exception as e:
+                print(f"[ERROR] Failed to initialize database: {e}")
+                return False
+
+        return self._has_valid_schema()
+
     def log_action(self, action: str, reasoning: str, outcome: str = "", cost: float = 0.0):
         """Log an action with reasoning"""
         import json
+        import sqlite3
         metadata = None
+
         try:
             self.db.execute(
                 "INSERT INTO action_log (action, reasoning, outcome, cost, metadata) VALUES (?, ?, ?, ?, ?)",
                 (action, reasoning, outcome, cost, metadata)
             )
-        except Exception:
-            # Fallback to legacy columns if metadata not present
-            self.db.execute(
-                "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
-                (action, reasoning, outcome, cost)
-            )
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            # Only fallback if it's specifically about metadata column
+            if 'metadata' in error_msg or 'column' in error_msg:
+                try:
+                    self.db.execute(
+                        "INSERT INTO action_log (action, reasoning, outcome, cost) VALUES (?, ?, ?, ?)",
+                        (action, reasoning, outcome, cost)
+                    )
+                    return  # Success with fallback
+                except Exception as e2:
+                    print(f"[ERROR] Failed to log action '{action}': {e2}")
+                    print(f"[ERROR] Database path: {self.db_path}")
+                    print(f"[ERROR] Original error: {e}")
+                    raise
+            else:
+                # Some other error - print and raise
+                print(f"[ERROR] Failed to log action '{action}': {e}")
+                print(f"[ERROR] Database path: {self.db_path}")
+
+                # Check if table exists
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='action_log'")
+                    if not cursor.fetchone():
+                        print(f"[ERROR] Table 'action_log' does not exist in database!")
+                    conn.close()
+                except:
+                    pass
+
+                raise
     
     def validate_mandates(self, action_data: Dict) -> bool:
         """

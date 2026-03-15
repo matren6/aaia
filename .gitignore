@@ -36,4 +36,4 @@ credentials/
 *.backup.*
 configuration.nix.backup.*
 /.vs/slnx.sqlite
-/.vs/slnx.sqlite
+

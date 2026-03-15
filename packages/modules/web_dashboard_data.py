@@ -205,29 +205,46 @@ class DashboardDataAggregator:
         """Get scheduler tasks."""
         try:
             if not self.scheduler:
-                return {"tasks": [], "next_proposed_action": None}
+                return {"tasks": [], "next_proposed_action": None, "error": "Scheduler not initialized"}
 
+            # Scheduler uses task_queue (list of dicts), not tasks
             tasks = []
-            for task in self.scheduler.tasks:
+            for task in self.scheduler.task_queue:
+                # Convert datetime to string if present
+                last_run_str = None
+                next_run_str = None
+
+                if task.get("last_run"):
+                    last_run_str = task["last_run"].isoformat() if isinstance(task["last_run"], datetime) else str(task["last_run"])
+
+                if task.get("next_run"):
+                    next_run_str = task["next_run"].isoformat() if isinstance(task["next_run"], datetime) else str(task["next_run"])
+
                 tasks.append({
-                    "id": task.name,
-                    "name": task.name,
-                    "enabled": task.enabled,
-                    "priority": getattr(task, "priority", "normal"),
-                    "interval_minutes": task.interval_seconds // 60 if task.interval_seconds else 0,
-                    "last_run": getattr(task, "last_run", None),
-                    "next_run": getattr(task, "next_run", None),
-                    "execution_count": getattr(task, "execution_count", 0),
+                    "id": task["name"],
+                    "name": task["name"],
+                    "enabled": task.get("enabled", True),
+                    "priority": task.get("priority", 3),
+                    "interval_minutes": task.get("interval_minutes", 0),
+                    "interval_hours": task.get("interval_hours", 0),
+                    "last_run": last_run_str,
+                    "next_run": next_run_str,
+                    "execution_count": 0,  # TODO: Track this
                 })
 
             return {
                 "tasks": tasks,
+                "total": len(tasks),
                 "next_proposed_action": None,  # TODO: Implement
             }
         except Exception as e:
+            print(f"Error getting tasks: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 "error": str(e),
                 "tasks": [],
+                "total": 0,
             }
 
     def get_tools(self) -> Dict[str, Any]:
@@ -323,35 +340,57 @@ class DashboardDataAggregator:
         """Get goals from database."""
         try:
             conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row  # Enable column access by name
             cursor = conn.cursor()
 
             # Get total count
-            cursor.execute("SELECT COUNT(*) FROM goals")
+            count_query = "SELECT COUNT(*) FROM goals WHERE 1=1"
+            count_params = []
+            if status and status != "all":
+                count_query += " AND status = ?"
+                count_params.append(status)
+
+            cursor.execute(count_query, count_params)
             total = cursor.fetchone()[0]
 
             # Get paginated results
             query = "SELECT * FROM goals WHERE 1=1"
             params = []
-            
+
             if status and status != "all":
                 query += " AND status = ?"
                 params.append(status)
 
-            query += " LIMIT ? OFFSET ?"
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
 
             cursor.execute(query, params)
-            goals = [dict(row) for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            goals = [dict(row) for row in rows]
             conn.close()
+
+            # Count by status
+            active = sum(1 for g in goals if g.get('status') == 'active')
+            completed = sum(1 for g in goals if g.get('status') == 'completed')
 
             return {
                 "goals": goals,
                 "total": total,
                 "limit": limit,
                 "offset": offset,
+                "active": active,
+                "completed": completed,
             }
-        except Exception:
-            return {"goals": [], "total": 0, "limit": limit, "offset": offset}
+        except Exception as e:
+            print(f"Error fetching goals: {e}")
+            return {
+                "goals": [],
+                "total": 0,
+                "limit": limit,
+                "offset": offset,
+                "active": 0,
+                "completed": 0,
+            }
 
     def _get_economics_from_db(self, days: int = 30) -> Dict[str, Any]:
         """Get economics data from database."""
@@ -396,10 +435,11 @@ class DashboardDataAggregator:
         """Get logs from database with optional filtering."""
         try:
             conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row  # Enable column access by name
             cursor = conn.cursor()
 
-            # Build query
-            query = "SELECT * FROM action_log WHERE 1=1"
+            # Build query - note: action_log has 'outcome' not 'status', 'reasoning' not 'details'
+            query = "SELECT id, timestamp, action, reasoning as details, outcome as status, cost FROM action_log WHERE 1=1"
             params = []
 
             if filters:
@@ -407,11 +447,21 @@ class DashboardDataAggregator:
                     query += " AND action LIKE ?"
                     params.append(f"%{filters['action']}%")
                 if filters.get("status"):
-                    query += " AND status = ?"
+                    query += " AND outcome = ?"
                     params.append(filters["status"])
 
-            # Get total count
-            cursor.execute(f"SELECT COUNT(*) FROM ({query})", params)
+            # Get total count first (without LIMIT)
+            count_query = f"SELECT COUNT(*) FROM action_log WHERE 1=1"
+            count_params = []
+            if filters:
+                if filters.get("action"):
+                    count_query += " AND action LIKE ?"
+                    count_params.append(f"%{filters['action']}%")
+                if filters.get("status"):
+                    count_query += " AND outcome = ?"
+                    count_params.append(filters["status"])
+
+            cursor.execute(count_query, count_params)
             total = cursor.fetchone()[0]
 
             # Get paginated results
@@ -419,7 +469,8 @@ class DashboardDataAggregator:
             params.extend([limit, offset])
 
             cursor.execute(query, params)
-            logs = [dict(row) for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+            logs = [dict(row) for row in rows]
             conn.close()
 
             return {
@@ -428,5 +479,8 @@ class DashboardDataAggregator:
                 "limit": limit,
                 "offset": offset,
             }
-        except Exception:
+        except Exception as e:
+            print(f"Error fetching logs: {e}")
+            import traceback
+            traceback.print_exc()
             return {"logs": [], "total": 0, "limit": limit, "offset": offset}

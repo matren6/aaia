@@ -54,19 +54,19 @@ class WebSocketHandler:
 
     def on_connect(self):
         """Handle client connection."""
-        from flask_socketio import request
+        from flask import request
         client_id = request.sid
         self.connected_clients.add(client_id)
-        
+
         # Send initial system status
         status = self.data_aggregator.get_system_status() if self.data_aggregator else {}
         self.socketio.emit('system_status', status, to=client_id)
-        
+
         return True
 
     def on_disconnect(self):
         """Handle client disconnection."""
-        from flask_socketio import request
+        from flask import request
         client_id = request.sid
         self.connected_clients.discard(client_id)
 

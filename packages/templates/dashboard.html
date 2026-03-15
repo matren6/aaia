@@ -292,25 +292,6 @@
         }
     }
 
-    // Simulate resource updates (for Phase 1)
-    function updateSimulatedResources() {
-        // Simulate CPU usage (20-60%)
-        const cpu = Math.random() * 40 + 20;
-        document.getElementById('cpuUsage').style.width = cpu + '%';
-        document.getElementById('cpuPercent').textContent = Math.round(cpu) + '%';
-
-        // Simulate memory usage (30-70%)
-        const mem = Math.random() * 40 + 30;
-        document.getElementById('memUsage').style.width = mem + '%';
-        document.getElementById('memPercent').textContent = Math.round(mem * 10.24) + ' MB';
-
-        // Simulate stats (these will be real in Phase 2)
-        document.getElementById('activeGoals').textContent = Math.floor(Math.random() * 5) + 3;
-        document.getElementById('toolsCreated').textContent = Math.floor(Math.random() * 10) + 5;
-        document.getElementById('monthlyIncome').textContent = '$' + (Math.random() * 200 + 50).toFixed(2);
-        document.getElementById('profitMargin').textContent = (Math.random() * 20 + 10).toFixed(1) + '%';
-    }
-
     // Toggle scheduler (placeholder)
     function toggleScheduler() {
         const btn = event.target;
