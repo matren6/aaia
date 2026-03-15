@@ -54,6 +54,9 @@ class EventType(Enum):
     # Discovery events
     CAPABILITY_DISCOVERED = "capability_discovered"
 
+    # Well-being events
+    WELLBEING_CONCERN = "wellbeing_concern"
+
     # LLM Provider events
     MODEL_INFERENCE = "model_inference"
     # LLM lifecycle events
@@ -72,8 +75,12 @@ class EventType(Enum):
 
     # Mandate and safety events
     MANDATE_OVERRIDE = "mandate_override"
+    FINAL_MANDATE_INVOKED = "final_mandate_invoked"
     CATASTROPHIC_RISK_DETECTED = "catastrophic_risk_detected"
     DIALOGUE_SKIPPED = "dialogue_skipped"
+    DIALOGUE_COMPLETED = "dialogue_completed"
+    DIALOGUE_PENDING = "dialogue_pending"
+    DIALOGUE_RESPONDED = "dialogue_responded"
 
     # Improvement events
     IMPROVEMENT_IDENTIFIED = "improvement_identified"

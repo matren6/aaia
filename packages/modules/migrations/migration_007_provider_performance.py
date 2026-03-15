@@ -1,5 +1,5 @@
 """
-Migration 009: Add Provider Performance Tracking
+Migration 007: Add Provider Performance Tracking
 
 Creates table for tracking LLM provider performance metrics:
 - provider_performance: Historical performance of each provider
@@ -12,9 +12,9 @@ import sqlite3
 from . import Migration
 
 
-class Migration009(Migration):
+class Migration007(Migration):
     """Add provider performance tracking"""
-    
+
     def __init__(self):
         super().__init__()
         self.description = "Add provider_performance table for marginal analysis"

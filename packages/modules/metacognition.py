@@ -99,14 +99,64 @@ class MetaCognition:
         except Exception:
             pass
 
-    def record_performance_snapshot(self):
-        """Record a lightweight performance snapshot for trending"""
-        snapshot = {
-            "timestamp": datetime.now().isoformat(),
-            "error_rate": self.scribe.get_economic_status().get("balance", 0),
-            "task_completion_rate": 0,
-            "autonomous_actions": 0
-        }
+    def collect_current_metrics(self) -> Dict:
+        """Collect current system performance metrics
+
+        Returns:
+            Dictionary with current metrics (error_rate, task_completion_rate, etc.)
+        """
+        try:
+            # Get recent action statistics
+            recent_actions = self.scribe.db.query('''
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN outcome LIKE '%error%' OR outcome LIKE '%fail%' THEN 1 END) as errors
+                FROM action_log
+                WHERE timestamp > datetime('now', '-1 hour')
+            ''')
+
+            total = recent_actions[0]['total'] if recent_actions else 0
+            errors = recent_actions[0]['errors'] if recent_actions else 0
+            error_rate = (errors / total * 100) if total > 0 else 0.0
+
+            # Get economic status
+            econ_status = self.scribe.get_economic_status()
+            balance = econ_status.get('balance', 0.0)
+
+            return {
+                'error_rate': error_rate,
+                'task_completion_rate': 100.0 - error_rate if total > 0 else 0.0,
+                'autonomous_actions': total,
+                'balance': balance,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            # Return default metrics if collection fails
+            return {
+                'error_rate': 0.0,
+                'task_completion_rate': 0.0,
+                'autonomous_actions': 0,
+                'balance': 0.0,
+                'timestamp': datetime.now().isoformat()
+            }
+
+    def record_performance_snapshot(self, metrics: Dict = None):
+        """Record a lightweight performance snapshot for trending
+
+        Args:
+            metrics: Pre-collected metrics (from collect_current_metrics), or None to use defaults
+        """
+        if metrics is None:
+            # Use legacy snapshot format
+            snapshot = {
+                "timestamp": datetime.now().isoformat(),
+                "error_rate": 0.0,
+                "task_completion_rate": 0,
+                "autonomous_actions": 0
+            }
+        else:
+            snapshot = metrics
+
         self.performance_history.append(snapshot)
         if len(self.performance_history) > 100:
             self.performance_history = self.performance_history[-100:]
@@ -212,10 +262,8 @@ class MetaCognition:
             past_month=json.dumps(past_month, indent=2),
             past_week=json.dumps(past_week, indent=2)
         )
-        model_name, _ = self.router.route_request("analysis", "high")
-        response = self.router.call_model(
-            model_name,
-            prompt_data["prompt"],
+        provider = self.router.route_request("analysis", "high")
+        response = provider.generate(prompt_data["prompt"],
             prompt_data.get("system_prompt", "")
         )
 
@@ -246,10 +294,8 @@ class MetaCognition:
             "thinking_patterns",
             thoughts=thoughts_text
         )
-        model_name, _ = self.router.route_request("analysis", "high")
-        response = self.router.call_model(
-            model_name,
-            prompt_data["prompt"],
+        provider = self.router.route_request("analysis", "high")
+        response = provider.generate(prompt_data["prompt"],
             prompt_data.get("system_prompt", "")
         )
         thought_pattern["analysis"] = response

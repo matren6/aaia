@@ -69,29 +69,27 @@ class IntentPredictor:
         conn = sqlite3.connect(self.scribe.db_path)
         cursor = conn.cursor()
 
-        # Create table for master model
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS master_model (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trait TEXT UNIQUE NOT NULL,
-                value TEXT NOT NULL,
-                confidence REAL DEFAULT 0.1,
-                evidence_count INTEGER DEFAULT 1,
-                last_updated TEXT
-            )
-        ''')
+        # Table is created by migration 004 - just query it
+        # Schema: trait_category, trait_name, trait_value, confidence, evidence, last_updated
+        try:
+            cursor.execute("""
+                SELECT trait_name, trait_value, confidence 
+                FROM master_model 
+                WHERE trait_category = 'preference'
+            """)
+            rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            # Table doesn't exist yet (shouldn't happen with migrations)
+            rows = []
 
-        # Get existing traits
-        cursor.execute("SELECT trait, value, confidence, evidence_count FROM master_model")
-        rows = cursor.fetchall()
         conn.close()
 
         model = {}
-        for trait, value, confidence, count in rows:
-            model[trait] = {
-                "value": value,
+        for trait_name, trait_value, confidence in rows:
+            model[trait_name] = {
+                "value": trait_value,
                 "confidence": min(confidence, 1.0),
-                "evidence_count": count
+                "evidence_count": 1  # Not tracked in new schema
             }
 
         # If model is empty, initialize with defaults
@@ -116,16 +114,27 @@ class IntentPredictor:
         conn = sqlite3.connect(self.scribe.db_path)
         cursor = conn.cursor()
 
-        for trait, data in model.items():
+        for trait_name, data in model.items():
+            # Use migration 004 schema: trait_category, trait_name, trait_value, confidence, evidence, last_updated
+            # The UNIQUE constraint is on (trait_category, trait_name)
             cursor.execute('''
-                INSERT OR REPLACE INTO master_model (trait, value, confidence, evidence_count, last_updated)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO master_model 
+                (timestamp, trait_category, trait_name, trait_value, confidence, evidence, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(trait_category, trait_name) 
+                DO UPDATE SET 
+                    trait_value = excluded.trait_value,
+                    confidence = excluded.confidence,
+                    evidence = excluded.evidence,
+                    last_updated = excluded.last_updated
             ''', (
-                trait,
-                data["value"],
-                data["confidence"],
-                data.get("evidence_count", 1),
-                datetime.now().isoformat()
+                datetime.now().isoformat(),  # timestamp (required, NOT NULL)
+                'preference',  # trait_category
+                trait_name,    # trait_name
+                data["value"], # trait_value
+                data["confidence"],  # confidence
+                f"Evidence count: {data.get('evidence_count', 1)}",  # evidence
+                datetime.now().isoformat()  # last_updated
             ))
 
         conn.commit()
@@ -229,10 +238,8 @@ class IntentPredictor:
             day_preference=temporal_pattern.get('day_preference', 'varied'),
             sequential_pattern=sequential_pattern
         )
-        model_name, _ = self.router.route_request("prediction", "high")
-        response = self.router.call_model(
-            model_name,
-            prompt_data["prompt"],
+        provider = self.router.route_request("prediction", "high")
+        response = provider.generate(prompt_data["prompt"],
             prompt_data["system_prompt"]
         )
 
@@ -371,10 +378,8 @@ def analyze_capability_gap(self, command: str) -> Optional[Dict]:
         "capability_gap_analysis",
         command=command
     )
-    model_name, _ = self.router.route_request("analysis", "medium")
-    response = self.router.call_model(
-        model_name,
-        prompt_data["prompt"],
+    provider = self.router.route_request("analysis", "medium")
+    response = provider.generate(prompt_data["prompt"],
         prompt_data["system_prompt"]
     )
 

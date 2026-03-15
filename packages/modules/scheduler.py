@@ -239,11 +239,20 @@ class AutonomousScheduler:
 
         # Phase 2: Master Model & Income Tasks (NEW)
         # Master model reflection - weekly (10080 minutes = 7 days)
+        # Using enhanced version (Phase 3) which includes advice effectiveness analysis
         self.register_task(
             name="master_model_reflection",
-            function=self.run_master_model_reflection,
+            function=self.run_enhanced_master_model_reflection,
             interval_minutes=max(60, 10080),  # Weekly with minimum 1 hour for testing
             priority=2
+        )
+
+        # Master Well-Being Assessment - daily (Phase 2.2 - Tier 1 requirement)
+        self.register_task(
+            name="master_wellbeing_assessment",
+            function=self.run_wellbeing_assessment,
+            interval_minutes=max(60, 1440),  # Daily with minimum 1 hour for testing
+            priority=2  # Tier 1 requirement - high priority
         )
 
         # Income opportunity identification - 6 hourly (360 minutes)
@@ -300,14 +309,8 @@ class AutonomousScheduler:
             priority=60
         )
 
-        # Phase 3: Enhanced Master Model Reflection (NEW)
-        # Enhanced reflection with advice effectiveness tracking - weekly
-        self.register_task(
-            name="enhanced_master_model_reflection",
-            function=self.run_enhanced_master_model_reflection,
-            interval_minutes=max(60, 10080),  # Weekly (10080 = 7 days) with minimum 1 hour for testing
-            priority=50  # High priority - learning from master interactions
-        )
+        # Note: Enhanced master model reflection already registered above (line ~242-247)
+        # to avoid duplicate registration
 
     def register_task(self, name: str, function: Callable, 
                       interval_minutes: int = None, 
@@ -555,9 +558,8 @@ class AutonomousScheduler:
             "system_health_advisor",
             issues_text=issues_text
         )
-        model_name, _ = self.router.route_request("general", "low")
-        response = self.router.call_model(
-            model_name,
+        provider = self.router.route_request("general", "low")
+        response = provider.generate(
             prompt_data["prompt"],
             prompt_data["system_prompt"]
         )
@@ -601,12 +603,12 @@ class AutonomousScheduler:
             tools=tools
         )
 
-        model_name, _ = self.router.route_request("reasoning", "medium")
-        response = self.router.call_model(
-            model_name,
+        provider = self.router.route_request("reasoning", "medium")
+        response_obj = provider.generate(
             prompt_data["prompt"],
             prompt_data.get("system_prompt", "")
         )
+        response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
 
         # Parse response into list of ideas
         ideas = []
@@ -665,12 +667,12 @@ Response format:
 4. INSIGHTS: [conclusions]
 """
         try:
-            model_name, _ = self.router.route_request("reasoning", "high")
-            analysis = self.router.call_model(
-                model_name,
+            provider = self.router.route_request("reasoning", "high")
+            analysis_obj = provider.generate(
                 reflection_prompt,
                 system_prompt="You are a reflective AI analyzing your own behavior and interactions to improve."
             )
+            analysis = analysis_obj.content if hasattr(analysis_obj, 'content') else str(analysis_obj)
             
             # Log reflection insights
             self.scribe.log_action(
@@ -769,12 +771,12 @@ Response format:
         elif "create tool" in action.lower():
             # Try PromptManager first for tool creation
             prompt_data = self.prompt_manager.get_prompt("tool_creation_plan")
-            model_name, _ = self.router.route_request("coding", "medium")
-            response = self.router.call_model(
-                model_name,
+            provider = self.router.route_request("coding", "medium")
+            response_obj = provider.generate(
                 prompt_data["prompt"],
                 prompt_data["system_prompt"]
             )
+            response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
 
             return f"Tool creation plan generated: {response[:100]}..." if response else "No plan generated"
         else:
@@ -987,6 +989,54 @@ Response format:
             )
             return f"Enhanced reflection failed: {str(e)}"
             return f"Master model reflection failed: {str(e)}"
+
+    def run_wellbeing_assessment(self):
+        """Daily master well-being assessment (Tier 1 - Phase 2.2)"""
+        try:
+            wellbeing_monitor = self._get_wellbeing_monitor()
+            assessment = wellbeing_monitor.assess_wellbeing(days=7)
+
+            score = assessment.get('wellbeing_score', 0)
+            recommendations = assessment.get('recommendations', [])
+
+            self.scribe.log_action(
+                "Master well-being assessment completed",
+                reasoning=f"Analyzed {assessment.get('interaction_count', 0)} interactions",
+                outcome=f"Well-being score: {score}/100, {len(recommendations)} recommendations"
+            )
+
+            # If score is low, notify and publish event
+            if score < 60:
+                self.scribe.log_system_event("WELLBEING_CONCERN", {
+                    'score': score,
+                    'recommendations': recommendations[:3]
+                })
+
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.emit(Event(EventType.WELLBEING_CONCERN, {
+                            'score': score,
+                            'primary_issues': assessment.get('stress_indicators', [])[:2]
+                        }))
+                    except:
+                        pass
+
+            return f"Well-being assessment: {score}/100"
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Well-being assessment failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Well-being assessment failed: {str(e)}"
+
+    def _get_wellbeing_monitor(self):
+        """Get MasterWellBeingMonitor from container"""
+        if 'MasterWellBeingMonitor' not in self._lazy:
+            self._lazy['MasterWellBeingMonitor'] = self._container.get('MasterWellBeingMonitor')
+        return self._lazy['MasterWellBeingMonitor']
 
     def identify_income_opportunities(self):
         """Identify income generation opportunities"""

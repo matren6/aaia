@@ -181,10 +181,8 @@ class EvolutionOrchestrator:
             capability_gaps=chr(10).join(f"  - {gap.get('name','unknown')}: {gap.get('description','')}" for gap in capability_gaps[:5]),
             intent_predictions=json.dumps(intent_predictions[:3], indent=2)
         )
-        model_name, _ = self.router.route_request("synthesis", "high")
-        priorities = self.router.call_model(
-            model_name,
-            pm_prompt["prompt"],
+        provider = self.router.route_request("synthesis", "high")
+        priorities = provider.generate(pm_prompt["prompt"],
             pm_prompt.get("system_prompt", "")
         )
         print(f"  - AI synthesized priorities")
@@ -212,8 +210,8 @@ class EvolutionOrchestrator:
             raise DependencyError("Required prompt 'detailed_evolution_plan' not registered in PromptManager")
 
         pm_prompt = self.prompt_manager.get_prompt("detailed_evolution_plan", priorities=priorities)
-        model_name, _ = self.router.route_request("planning", "high")
-        plan = self.router.call_model(model_name, pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
+        provider = self.router.route_request("planning", "high")
+        plan = provider.generate(pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
         print("  - Detailed plan created")
 
         return {
@@ -334,8 +332,8 @@ class EvolutionOrchestrator:
             validation_summary=validation.get('validation_summary', 'N/A'),
             insights=json.dumps(reflection.get('insights', []), indent=2)
         )
-        model_name, _ = self.router.route_request("analysis", "medium")
-        lessons = self.router.call_model(model_name, pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
+        provider = self.router.route_request("analysis", "medium")
+        lessons = provider.generate(pm_prompt["prompt"], pm_prompt.get("system_prompt", ""))
         print("  - Generated lessons learned")
         
         return {

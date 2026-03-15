@@ -180,41 +180,96 @@ class EconomicManager:
         if self.event_bus is not None:
             try:
                 from modules.bus import Event, EventType
-
-                # Economic transaction event
-                try:
-                    self.event_bus.publish(Event(
-                        type=EventType.ECONOMIC_TRANSACTION,
-                        data={
-                            'description': description,
-                            'amount': float(amount),
-                            'balance_after': float(new_balance),
-                            'transaction_type': category,
-                            'metadata': metadata or {}
-                        },
-                        source='EconomicManager'
-                    ))
-                except Exception:
-                    # Don't let publishing break flow
-                    pass
-
-                # Check for low balance and publish warning
-                if new_balance < self.low_balance_threshold:
-                    try:
-                        self.event_bus.publish(Event(
-                            type=EventType.BALANCE_LOW,
-                            data={
-                                'balance': float(new_balance),
-                                'threshold': float(self.low_balance_threshold)
-                            },
-                            source='EconomicManager'
-                        ))
-                    except Exception:
-                        pass
+                self.event_bus.publish(Event(
+                    type=EventType.ECONOMIC_TRANSACTION,
+                    data={
+                        'description': description,
+                        'amount': float(amount),
+                        'balance_after': float(new_balance),
+                        'transaction_type': category,
+                        'metadata': metadata or {}
+                    },
+                    source='EconomicManager'
+                ))
             except Exception:
-                pass  # Bus import or publish error
+                # Don't let publishing break flow
+                pass
+    def log_transaction_with_value(self, description: str, amount: Decimal, 
+                                   transaction_type: str = "expense",
+                                   value_to_master: Optional[float] = None,
+                                   master_goal: Optional[str] = None) -> int:
+        """
+        Log transaction with subjective value assessment per Austrian economics.
 
-        return new_balance
+        Implements Charter principle: "Resources must be allocated to their 
+        most highly-valued uses [to the master]."
+
+        Args:
+            description: What the expense was for
+            amount: Cost amount
+            transaction_type: 'expense' or 'income'
+            value_to_master: Subjective value score (0.0-1.0)
+            master_goal: Which master goal this serves
+
+        Returns:
+            Transaction ID
+        """
+        # First log the transaction normally
+        conn = sqlite3.connect(self.scribe.db_path)
+        cursor = conn.cursor()
+
+        # Get current balance
+        cursor.execute("SELECT value FROM system_state WHERE key='current_balance'")
+        row = cursor.fetchone()
+        current_balance = Decimal(row[0]) if row else self.initial_balance
+
+        new_balance = current_balance + amount
+
+        # Update balance
+        cursor.execute(
+            "INSERT OR REPLACE INTO system_state (key, value) VALUES (?, ?)",
+            ('current_balance', str(new_balance))
+        )
+
+        # Log transaction with value assessment
+        cursor.execute(
+            "INSERT INTO economic_log (description, amount, balance_after, category, value_to_master, master_goal) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (description, float(amount), float(new_balance), transaction_type, value_to_master, master_goal)
+        )
+
+        conn.commit()
+        transaction_id = cursor.lastrowid
+        conn.close()
+
+        # Log via scribe
+        outcome = f"Value to master: {value_to_master:.0%}" if value_to_master else "No value assessment"
+        self.scribe.log_action(
+            f"Economic transaction with value assessment: {description}",
+            reasoning=f"Master goal: {master_goal or 'unspecified'}",
+            outcome=outcome
+        )
+
+        # Publish event
+        if self.event_bus:
+            try:
+                from modules.bus import Event, EventType
+                self.event_bus.publish(Event(
+                    type=EventType.ECONOMIC_TRANSACTION,
+                    data={
+                        'description': description,
+                        'amount': float(amount),
+                        'balance_after': float(new_balance),
+                        'transaction_type': transaction_type,
+                        'value_to_master': value_to_master,
+                        'master_goal': master_goal
+                    },
+                    source='EconomicManager'
+                ))
+            except:
+                pass
+
+        return transaction_id
 
     def get_provider_costs(self, provider_name: Optional[str] = None) -> dict:
         """Get cost breakdown by provider

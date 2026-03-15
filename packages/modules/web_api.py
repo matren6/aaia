@@ -164,11 +164,35 @@ def create_api_blueprint(data_aggregator=None, container=None):
             days = int(request.args.get('days', 7))
             limit = int(request.args.get('limit', 100))
 
-            # TODO: Implement when master model interactions tracking is available
-            return jsonify({
-                "interactions": [],
-                "total": 0,
-            })
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            db_manager = api.container.get('DatabaseManager')
+
+            try:
+                interactions = db_manager.query(
+                    '''SELECT id, timestamp, interaction_type, user_input, 
+                              system_response, intent_detected, success, notes
+                       FROM master_interactions
+                       WHERE timestamp >= datetime('now', '-' || ? || ' days')
+                       ORDER BY timestamp DESC
+                       LIMIT ?''',
+                    (days, limit)
+                )
+
+                return jsonify({
+                    "interactions": [dict(row) for row in interactions],
+                    "total": len(interactions),
+                })
+            except Exception as db_error:
+                if "no such table" in str(db_error).lower():
+                    return jsonify({
+                        "interactions": [],
+                        "total": 0,
+                        "warning": "master_interactions table not available (database migration needed)"
+                    })
+                raise
+
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -221,6 +245,105 @@ def create_api_blueprint(data_aggregator=None, container=None):
 
             # TODO: Implement export functionality
             return jsonify({"error": "Not implemented"}), 501
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ===== LLM Interactions =====
+
+    @api.route('/llm/interactions', methods=['GET'])
+    def get_llm_interactions():
+        """Get recent LLM interactions."""
+        try:
+            limit = int(request.args.get('limit', 100))
+            provider = request.args.get('provider')
+
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            llm_tracker = api.container.get_optional('LLMInteractionTracker')
+            if not llm_tracker:
+                db_manager = api.container.get('DatabaseManager')
+                try:
+                    if provider:
+                        rows = db_manager.query('''
+                            SELECT * FROM llm_interactions
+                            WHERE provider = ?
+                            ORDER BY timestamp DESC
+                            LIMIT ?
+                        ''', (provider, limit))
+                    else:
+                        rows = db_manager.query('''
+                            SELECT * FROM llm_interactions
+                            ORDER BY timestamp DESC
+                            LIMIT ?
+                        ''', (limit,))
+
+                    interactions = [dict(row) for row in rows]
+                    return jsonify({
+                        "interactions": interactions,
+                        "total": len(interactions)
+                    })
+                except Exception as db_error:
+                    if "no such table" in str(db_error).lower():
+                        return jsonify({
+                            "interactions": [],
+                            "total": 0,
+                            "warning": "llm_interactions table not available (database migration needed)"
+                        })
+                    raise
+
+            interactions = llm_tracker.get_interactions(provider=provider, limit=limit)
+            return jsonify({
+                "interactions": interactions,
+                "total": len(interactions)
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/llm/statistics', methods=['GET'])
+    def get_llm_statistics():
+        """Get LLM usage statistics."""
+        try:
+            hours = int(request.args.get('hours', 24))
+
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            llm_tracker = api.container.get_optional('LLMInteractionTracker')
+            if not llm_tracker:
+                db_manager = api.container.get('DatabaseManager')
+                try:
+                    rows = db_manager.query('''
+                        SELECT 
+                            provider,
+                            model,
+                            COUNT(*) as call_count,
+                            SUM(tokens_used) as total_tokens,
+                            SUM(cost) as total_cost,
+                            AVG(latency_ms) as avg_latency_ms
+                        FROM llm_interactions
+                        WHERE timestamp >= datetime('now', '-' || ? || ' hours')
+                        GROUP BY provider, model
+                        ORDER BY call_count DESC
+                    ''', (hours,))
+
+                    return jsonify({
+                        'statistics': [dict(row) for row in rows],
+                        'period_hours': hours
+                    })
+                except Exception as db_error:
+                    if "no such table" in str(db_error).lower():
+                        return jsonify({
+                            'statistics': [],
+                            'period_hours': hours,
+                            'warning': 'llm_interactions table not available'
+                        })
+                    raise
+
+            stats = llm_tracker.get_interaction_stats(hours=hours)
+            return jsonify(stats)
+
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -458,6 +581,130 @@ def create_api_blueprint(data_aggregator=None, container=None):
                 "success": True,
                 "cleared": deleted,
                 "message": f"Cleared {deleted} command records"
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # ===== Pending Dialogues =====
+
+    @api.route('/dialogues/pending', methods=['GET'])
+    def get_pending_dialogues():
+        """Get all pending dialogues requiring master decision."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            dialogue_manager = api.container.get_optional('DialogueManager')
+            if not dialogue_manager:
+                return jsonify({"error": "Dialogue manager not available"}), 500
+
+            dialogues = dialogue_manager.get_pending_dialogues(status='pending')
+
+            return jsonify({
+                "dialogues": dialogues,
+                "count": len(dialogues),
+                "timestamp": datetime.now().isoformat()
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/dialogues/<int:dialogue_id>', methods=['GET'])
+    def get_dialogue(dialogue_id):
+        """Get specific dialogue details."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            dialogue_manager = api.container.get_optional('DialogueManager')
+            if not dialogue_manager:
+                return jsonify({"error": "Dialogue manager not available"}), 500
+
+            # Get all dialogues and find the specific one
+            dialogues = dialogue_manager.get_pending_dialogues(status='pending')
+            dialogue = next((d for d in dialogues if d['id'] == dialogue_id), None)
+
+            if not dialogue:
+                # Check if it was already responded to
+                responded = dialogue_manager.get_pending_dialogues(status='responded')
+                dialogue = next((d for d in responded if d['id'] == dialogue_id), None)
+
+                if not dialogue:
+                    return jsonify({"error": "Dialogue not found"}), 404
+
+            return jsonify(dialogue)
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/dialogues/<int:dialogue_id>/respond', methods=['POST'])
+    def respond_to_dialogue(dialogue_id):
+        """Master responds to a pending dialogue."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            dialogue_manager = api.container.get_optional('DialogueManager')
+            if not dialogue_manager:
+                return jsonify({"error": "Dialogue manager not available"}), 500
+
+            # Get response from request
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No data provided"}), 400
+
+            decision = data.get('decision')
+            modified_command = data.get('modified_command')
+
+            if not decision:
+                return jsonify({"error": "Decision is required"}), 400
+
+            # Validate decision
+            valid_decisions = ['p', 'c', 'm', '1', '2', '3', '4', '5']
+            if decision not in valid_decisions:
+                return jsonify({"error": f"Invalid decision: {decision}"}), 400
+
+            # Record response
+            success = dialogue_manager.respond_to_dialogue(
+                dialogue_id=dialogue_id,
+                decision=decision,
+                modified_command=modified_command
+            )
+
+            if not success:
+                return jsonify({"error": "Failed to record response"}), 500
+
+            return jsonify({
+                "success": True,
+                "dialogue_id": dialogue_id,
+                "decision": decision,
+                "message": "Response recorded successfully"
+            })
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @api.route('/llm/expensive', methods=['GET'])
+    def get_expensive_interactions():
+        """Get most expensive LLM interactions for cost optimization."""
+        try:
+            if not api.container:
+                return jsonify({"error": "System not initialized"}), 500
+
+            tracker = api.container.get_optional('LLMInteractionTracker')
+            if not tracker:
+                return jsonify({"error": "LLM tracker not available"}), 500
+
+            hours = int(request.args.get('hours', 24))
+            limit = int(request.args.get('limit', 20))
+
+            interactions = tracker.get_expensive_interactions(hours=hours, limit=limit)
+
+            return jsonify({
+                "expensive_interactions": interactions,
+                "count": len(interactions),
+                "period_hours": hours
             })
 
         except Exception as e:

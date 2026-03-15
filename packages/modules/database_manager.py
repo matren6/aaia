@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     """Manages database connections and schema migrations"""
 
-    CURRENT_SCHEMA_VERSION = 3
+    CURRENT_SCHEMA_VERSION = 16
 
     def __init__(self, db_path: str):
         self.db_path = db_path

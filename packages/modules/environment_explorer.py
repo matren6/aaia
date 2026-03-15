@@ -318,7 +318,7 @@ class EnvironmentExplorer:
             import psutil
 
             # CPU
-            cpu = psutil.cpu_counts()
+            cpu = psutil.cpu_count()
             resources["cpu_count"] = cpu
             resources["cpu_percent"] = psutil.cpu_percent(interval=0.1)
 

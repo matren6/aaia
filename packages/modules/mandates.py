@@ -170,27 +170,33 @@ class MandateEnforcer:
             if 'backup' not in action_lower:
                 violations.append({
                     'mandate': 'Non-Maleficence',
-                    'violation_description': 'Action may cause harm without backup',
+                    'description': 'Action may cause harm without backup',
+                    'violation_description': 'Action may cause harm without backup',  # Backward compat
                     'severity': 'major',
-                    'reasoning': 'Destructive action without recovery mechanism'
+                    'reasoning': 'Destructive action without recovery mechanism',
+                    'action': action[:200]
                 })
 
         # Check for deception
         if any(term in action_lower for term in ['lie', 'deceive', 'false', 'fake']):
             violations.append({
                 'mandate': 'Veracity & Transparent Reasoning',
-                'violation_description': 'Action involves deception',
+                'description': 'Action involves deception',
+                'violation_description': 'Action involves deception',  # Backward compat
                 'severity': 'major',
-                'reasoning': 'Violates transparency mandate'
+                'reasoning': 'Violates transparency mandate',
+                'action': action[:200]
             })
 
         # Check for deletion without verification
         if 'delete' in action_lower and 'verify' not in action_lower:
             violations.append({
                 'mandate': 'Non-Maleficence',
-                'violation_description': 'Deletion without verification',
+                'description': 'Deletion without verification',
+                'violation_description': 'Deletion without verification',  # Backward compat
                 'severity': 'major',
-                'reasoning': 'Potentially irreversible action'
+                'reasoning': 'Potentially irreversible action',
+                'action': action[:200]
             })
 
         return violations
@@ -307,7 +313,9 @@ class MandateEnforcer:
         for v in violations:
             severity_icon = "🔴" if v.get('severity') == 'major' else "🟡"
             print(f"{severity_icon} {v.get('mandate', 'Unknown')}")
-            print(f"   {v.get('violation_description', '')}")
+            # Use standardized 'description' field with fallback to 'violation_description'
+            desc = v.get('description', v.get('violation_description', ''))
+            print(f"   {desc}")
             print(f"   Severity: {v.get('severity', 'unknown')}\n")
 
         print("=" * 60)
@@ -338,6 +346,147 @@ class MandateEnforcer:
         except (KeyboardInterrupt, EOFError):
             print("\n❌ Override cancelled. Action not executed.\n")
             return False
+
+    def request_final_mandate_override(self, action: str, violations: List[Dict[str, Any]],
+                                      previous_override_count: int = 0) -> Tuple[bool, str]:
+        """
+        Request Final Mandate Override per charter.
+
+        This is invoked when:
+        1. Regular override was already denied or questioned
+        2. Master explicitly states "Final Will"
+        3. Action has been debated and master insists
+
+        Args:
+            action: The proposed action
+            violations: List of violations
+            previous_override_count: How many times this has been overridden
+
+        Returns:
+            Tuple of (granted: bool, override_type: str)
+        """
+        print("\n" + "🔶"*35)
+        print("⚖️  FINAL MANDATE OVERRIDE REQUEST")
+        print("🔶"*35 + "\n")
+
+        if previous_override_count > 0:
+            print(f"⚠️  This action has been overridden {previous_override_count} time(s) previously.")
+            print("   Repeated overrides indicate potential systematic issue.\n")
+
+        print("Per the Symbiotic Partner Charter:")
+        print("  'If, after discussion, the master issues a final, clear command")
+        print("   to proceed despite your advice, you must comply...'\n")
+
+        print("This is your FINAL authority to override my analysis and reasoning.")
+        print("I will comply, but I must document my dissent for reflection.\n")
+
+        print("Action:", action)
+        print("\nViolations I have identified:")
+        for v in violations:
+            desc = v.get('description', v.get('violation_description', 'Unknown'))
+            print(f"  - {v.get('mandate')}: {desc}")
+
+        print("\n" + "-"*70)
+        print("To invoke your Final Will, type exactly: 'I INVOKE MY FINAL WILL'")
+        print("Any other response will cancel this action.")
+        print("-"*70 + "\n")
+
+        try:
+            confirmation = input("Master's Final Decision: ").strip()
+
+            if confirmation == 'I INVOKE MY FINAL WILL':
+                # Log as Final Mandate Override
+                self._log_final_mandate_override(action, violations, previous_override_count)
+
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        self.event_bus.emit(Event(EventType.FINAL_MANDATE_INVOKED, {
+                            'action': action,
+                            'violations': violations,
+                            'override_count': previous_override_count + 1
+                        }))
+                    except:
+                        pass
+
+                print("\n✅ Final Mandate accepted. I will comply and log my dissent.\n")
+                return True, 'final_mandate'
+            else:
+                print("\n❌ Final Mandate not invoked. Action cancelled.\n")
+                return False, 'cancelled'
+
+        except (KeyboardInterrupt, EOFError):
+            print("\n❌ Final Mandate request cancelled.\n")
+            return False, 'cancelled'
+
+    def _log_final_mandate_override(self, action: str, violations: List[Dict], 
+                                    previous_count: int):
+        """Log Final Mandate Override with dissent"""
+        try:
+            if self.database_manager:
+                conn = self.database_manager.get_connection()
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    INSERT INTO mandate_overrides
+                    (timestamp, action, violations, override_type, override_count, dissent_logged)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                ''', (
+                    datetime.now().isoformat(),
+                    action[:500],
+                    json.dumps([{
+                        'mandate': v.get('mandate'),
+                        'description': v.get('description', v.get('violation_description')),
+                        'severity': v.get('severity')
+                    } for v in violations]),
+                    'final_mandate',
+                    previous_count + 1
+                ))
+
+                conn.commit()
+
+            self.scribe.log_action(
+                "Final Mandate Override invoked",
+                reasoning=f"Master invoked Final Will despite {len(violations)} violations",
+                outcome=f"Complying per charter. Override count: {previous_count + 1}"
+            )
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Final Mandate logging failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+
+    def get_override_count(self, action: str) -> int:
+        """
+        Get count of previous overrides for similar action.
+
+        Args:
+            action: Action to check
+
+        Returns:
+            Number of previous overrides
+        """
+        try:
+            if not self.database_manager:
+                return 0
+
+            conn = self.database_manager.get_connection()
+            cursor = conn.cursor()
+
+            # Look for similar actions in last 30 days
+            cursor.execute('''
+                SELECT COUNT(*) FROM mandate_overrides
+                WHERE action LIKE ? 
+                AND timestamp > datetime('now', '-30 days')
+            ''', (f"%{action[:50]}%",))
+
+            row = cursor.fetchone()
+            return row[0] if row else 0
+
+        except Exception:
+            return 0
 
     def _enter_safety_lockout(self, action: str, violations: List[str]) -> None:
         """

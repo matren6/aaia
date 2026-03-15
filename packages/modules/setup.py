@@ -84,6 +84,9 @@ from modules.marginal_analyzer import MarginalAnalyzer
 # Import Phase 3 modules (Crisis Response)
 from modules.economic_crisis_handler import EconomicCrisisHandler
 
+# Import LLM tracking module
+from modules.llm_tracker import LLMInteractionTracker
+
 
 class SystemBuilder:
     """
@@ -235,6 +238,29 @@ class SystemBuilder:
                 c.get('DatabaseManager'),
                 c.get('PromptManager'),
                 c.get('ModelRouter'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
+        # Master Well-Being Monitor (Phase 2.2 - Tier 1 requirement)
+        from modules.master_wellbeing import MasterWellBeingMonitor
+        self._container.register_factory('MasterWellBeingMonitor',
+            lambda c: MasterWellBeingMonitor(
+                c.get('Scribe'),
+                c.get('DatabaseManager'),
+                c.get('MasterModelManager'),
+                c.get('PromptManager'),
+                c.get('ModelRouter'),
+                event_bus=c.get('EventBus')
+            ),
+            singleton=True)
+
+        # LLM Interaction Tracker (Phase 2.3 - Tracking & Analysis)
+        from modules.llm_tracker import LLMInteractionTracker
+        self._container.register_factory('LLMInteractionTracker',
+            lambda c: LLMInteractionTracker(
+                c.get('DatabaseManager'),
+                c.get('Scribe'),
                 event_bus=c.get('EventBus')
             ),
             singleton=True)

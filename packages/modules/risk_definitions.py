@@ -86,28 +86,30 @@ def is_catastrophic_risk(violations: List[Dict]) -> bool:
 def get_risk_category(violation: Dict) -> str:
     """
     Match a violation to a catastrophic risk category.
-    
+
     Args:
         violation: Violation dictionary containing description and action
-        
+
     Returns:
         Category name or 'unknown'
     """
-    description = violation.get('description', '').lower()
+    # Try both field names for backward compatibility (standardized vs old)
+    description = violation.get('description', violation.get('violation_description', '')).lower()
     action = violation.get('action', '').lower()
     combined = f"{description} {action}".lower()
-    
+
     for category_name, category_info in CATASTROPHIC_RISK_CATEGORIES.items():
         # Check keywords
         for keyword in category_info.get('keywords', []):
             if keyword.lower() in combined:
                 return category_name
-        
+
         # Check examples
         for example in category_info.get('examples', []):
             if example.lower() in combined:
                 return category_name
-    
+
+    return 'unknown'
     return 'unknown'
 
 

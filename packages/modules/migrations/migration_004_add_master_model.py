@@ -20,10 +20,15 @@ class Migration004(Migration):
     def up(self, conn: sqlite3.Connection):
         """Create master model tables"""
         cursor = conn.cursor()
-        
+
+        # Drop existing tables if they exist (for clean migration)
+        # This ensures no schema conflicts from partial previous migrations
+        cursor.execute('DROP TABLE IF EXISTS master_model')
+        cursor.execute('DROP TABLE IF EXISTS master_interactions')
+
         # Master model table - tracks master's psychological traits
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS master_model (
+            CREATE TABLE master_model (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
                 trait_category TEXT NOT NULL,
@@ -35,10 +40,10 @@ class Migration004(Migration):
                 UNIQUE(trait_category, trait_name)
             )
         ''')
-        
+
         # Master interactions table - logs all interactions
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS master_interactions (
+            CREATE TABLE master_interactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
                 interaction_type TEXT NOT NULL,
@@ -49,12 +54,14 @@ class Migration004(Migration):
                 notes TEXT
             )
         ''')
-        
+
         # Create indexes
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_master_model_category ON master_model(trait_category)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_master_model_trait_name ON master_model(trait_name)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_master_interactions_timestamp ON master_interactions(timestamp DESC)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_master_interactions_type ON master_interactions(interaction_type)')
+        cursor.execute('CREATE INDEX idx_master_model_category ON master_model(trait_category)')
+        cursor.execute('CREATE INDEX idx_master_model_trait_name ON master_model(trait_name)')
+        cursor.execute('CREATE INDEX idx_master_interactions_timestamp ON master_interactions(timestamp DESC)')
+        cursor.execute('CREATE INDEX idx_master_interactions_type ON master_interactions(interaction_type)')
+
+        conn.commit()
     
     def down(self, conn: sqlite3.Connection):
         """Drop master model tables"""

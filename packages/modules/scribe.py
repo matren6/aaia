@@ -206,7 +206,33 @@ class Scribe:
                     pass
 
                 raise
-    
+
+    def log_system_event(self, event_type: str, details=None, **kwargs):
+        """Log a system event (compatibility method)
+
+        Args:
+            event_type: Type of event
+            details: Event details (can be string or dict)
+            **kwargs: Additional keyword arguments (ignored for compatibility)
+        """
+        import json
+
+        # Handle dict details by converting to JSON string
+        if isinstance(details, dict):
+            details_str = json.dumps(details)
+        elif details:
+            details_str = str(details)
+        else:
+            details_str = ""
+
+        # Map to log_action for compatibility (without metadata to avoid column error)
+        self.log_action(
+            action=f"System Event: {event_type}",
+            reasoning=details_str[:500],  # Truncate to reasonable length
+            outcome="Logged",
+            cost=0.0
+        )
+
     def validate_mandates(self, action_data: Dict) -> bool:
         """
         Validate action data against mandate requirements.

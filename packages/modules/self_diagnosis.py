@@ -261,12 +261,12 @@ class SelfDiagnosis:
                 action=action[:100],
                 frequency=freq
             )
-            model_name, _ = self.router.route_request("analysis", "medium")
-            suggestion = self.router.call_model(
-                model_name,
+            provider = self.router.route_request("analysis", "medium")
+            response_obj = provider.generate(
                 prompt_data["prompt"],
                 prompt_data["system_prompt"]
             )
+            suggestion = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
 
             if suggestion:
                 opportunities.append({
@@ -408,12 +408,12 @@ class SelfDiagnosis:
                     function_count=len(analysis["functions"]),
                     complex_functions=[c["function"] for c in analysis["complexities"]]
                 )
-                model_name, _ = self.router.route_request("coding", "high")
-                suggestions = self.router.call_model(
-                    model_name,
+                provider = self.router.route_request("coding", "high")
+                response_obj = provider.generate(
                     prompt_data["prompt"],
                     prompt_data["system_prompt"]
                 )
+                suggestions = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
 
                 if suggestions:
                     analysis["improvements"] = [s.strip() for s in suggestions.split('\n') if s.strip()]

@@ -19,13 +19,23 @@ class Migration008(Migration):
     def up(self, conn: sqlite3.Connection):
         """Add resource cost support"""
         cursor = conn.cursor()
-        
+
+        # Add category column to economic_log if it doesn't exist
+        try:
+            cursor.execute('''
+                ALTER TABLE economic_log 
+                ADD COLUMN category TEXT DEFAULT NULL
+            ''')
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+
         # Add index on category for efficient filtering
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_economic_log_category 
             ON economic_log(category, timestamp DESC)
         ''')
-        
+
         # Add resource_costs table for detailed tracking
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS resource_costs (
@@ -38,6 +48,8 @@ class Migration008(Migration):
                 metadata TEXT
             )
         ''')
+
+        conn.commit()
         
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_resource_costs_timestamp 

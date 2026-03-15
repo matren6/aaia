@@ -305,37 +305,76 @@ class Arbiter:
 
         if not is_allowed and violations:
             if status == 'violations':
-                # Non-catastrophic violations - ask for override
-                confirmed = self.mandates.request_master_override(command, violations, False)
-                if not confirmed:
-                    return "Command cancelled (override not confirmed)"
+                # Non-catastrophic violations - check if overridden before
+                override_count = self.mandates.get_override_count(command)
+
+                if override_count > 0:
+                    # Master has overridden before - offer Final Mandate
+                    granted, override_type = self.mandates.request_final_mandate_override(
+                        command, violations, override_count
+                    )
+                else:
+                    # First time - regular override
+                    granted = self.mandates.request_master_override(
+                        command, violations, is_catastrophic=False
+                    )
+                    override_type = 'regular' if granted else 'cancelled'
+
+                if not granted:
+                    return "❌ Action cancelled - mandate violations not overridden."
 
         # For non-urgent significant commands, run analysis (Phase 3.2)
         # Use AI classification instead of simple keyword matching
         if not skip_dialogue and (should_use_dialogue or self.dialogue.requires_dialogue(command, urgency_level)):
             understanding, risks, alternatives = self.dialogue.structured_argument(command)
 
-            response = f"""
-            Analysis of your command:
+            # Present to master (mode-aware: web or console)
+            dialogue_result = self.dialogue.present_structured_argument(
+                command, understanding, risks, alternatives
+            )
 
-            1. UNDERSTANDING: {understanding}
+            # Handle master's decision based on mode
+            if dialogue_result.get('mode') == 'web' and dialogue_result['master_decision'] == 'pending':
+                # Web mode: Dialogue is pending, inform master
+                dialogue_id = dialogue_result.get('dialogue_id')
+                self.scribe.log_action(
+                    "Command awaiting master decision via web GUI",
+                    reasoning=f"Dialogue ID: {dialogue_id}",
+                    outcome="pending"
+                )
+                return f"⏳ Command requires your decision. Please check the web dashboard (Dialogue #{dialogue_id})."
 
-            2. IDENTIFIED RISKS/FLAWS:
-            {chr(10).join(f'   - {risk}' for risk in risks)}
+            # Console mode or already responded
+            if dialogue_result['master_decision'] == 'cancel':
+                self.scribe.log_action(
+                    "Command cancelled by master",
+                    reasoning="After structured dialogue",
+                    outcome="cancelled"
+                )
+                return "❌ Command cancelled per your decision."
 
-            3. PROPOSED ALTERNATIVES:
-            {chr(10).join(f'   - {alt}' for alt in alternatives)}
+            elif dialogue_result['master_decision'] == 'modify':
+                # Process the modified command recursively
+                command = dialogue_result['final_command']
+                self.scribe.log_action(
+                    "Command modified after dialogue",
+                    reasoning=f"Modified to: {command}",
+                    outcome="proceeding with modified command"
+                )
+                # Continue with modified command
 
-            Should I proceed with your original command, or would you like to discuss alternatives?
-            """
-
-            return response
+            # If 'proceed', continue with original command
 
         else:
             # Execute command and log interaction (Phase 4.3)
             result = self.execute_command(command)
             self._log_interaction(command, result, success=True)
             return result
+
+        # Execute command after dialogue (if not cancelled)
+        result = self.execute_command(command)
+        self._log_interaction(command, result, success=True)
+        return result
             
     def is_significant_command(self, command: str) -> bool:
         """Determine if command requires full analysis"""

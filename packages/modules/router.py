@@ -434,10 +434,15 @@ class ModelRouter:
                         data={
                             'model': getattr(response, 'model', optimal_model),
                             'provider': getattr(response, 'provider', provider_name),
+                            'prompt': prompt[:1000],  # Truncate for event
+                            'system_prompt': system_prompt[:500] if system_prompt else None,
+                            'response': getattr(response, 'content', str(response))[:1000],
                             'tokens_used': getattr(response, 'tokens_used', None),
                             'duration': duration,
+                            'latency_ms': int(duration * 1000),
                             'cost': getattr(response, 'cost', None),
-                            'request_id': request_id
+                            'request_id': request_id,
+                            'context': kwargs.get('context', f"{task_type}/{complexity}")
                         },
                         source='ModelRouter'
                     ))
@@ -464,8 +469,10 @@ class ModelRouter:
                         data={
                             'model': optimal_model,
                             'provider': provider_name,
+                            'prompt': prompt[:1000],
                             'error': str(e),
-                            'request_id': request_id
+                            'request_id': request_id,
+                            'context': kwargs.get('context', f"{task_type}/{complexity}")
                         },
                         source='ModelRouter'
                     ))
