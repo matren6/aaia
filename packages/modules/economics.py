@@ -43,7 +43,8 @@ OUTPUTS: Cost calculations, balance updates, transaction logs
 import sqlite3
 import time
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Dict, List
+from datetime import datetime, timedelta
 from .scribe import Scribe
 
 
@@ -575,3 +576,291 @@ class EconomicManager:
         conn.close()
 
         self.scribe.log_action(f"Opportunity {opportunity_id} status updated", outcome=f"New status: {status}")
+
+    def calculate_net_position(self, days: int = 30) -> Dict:
+        """
+        Calculate comprehensive financial position for a given period.
+
+        Computes income, costs, and profit metrics used for determining
+        economic health and hierarchy tier progression.
+
+        Args:
+            days: Number of days to analyze (default 30)
+
+        Returns:
+            Dict with keys:
+            - period_days: Number of days analyzed
+            - total_income: Sum of all income
+            - total_costs: Sum of all costs
+            - net_position: Income minus costs
+            - profitable: Boolean indicating if net > 0
+            - income_breakdown: Dict of income by source
+            - cost_breakdown: Dict of costs by category
+            - trend: "improving", "declining", or "stable"
+            - previous_period_comparison: Difference from previous period
+            - roi_percentage: Return on investment percentage
+        """
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+
+            # Get income breakdown
+            income_sources = self._get_income_breakdown(start_date, end_date)
+            total_income = sum(income_sources.values())
+
+            # Get cost breakdown
+            cost_categories = self._get_cost_breakdown(start_date, end_date)
+            total_costs = sum(cost_categories.values())
+
+            # Net calculation
+            net_position = total_income - total_costs
+
+            # Trend analysis - compare with previous period
+            previous_period_net = self._get_previous_period_net(days)
+            if net_position > previous_period_net:
+                trend = 'improving'
+            elif net_position < previous_period_net:
+                trend = 'declining'
+            else:
+                trend = 'stable'
+
+            # Calculate ROI
+            roi_percentage = (net_position / max(total_costs, 1)) * 100 if total_costs > 0 else 0
+
+            result = {
+                'period_days': days,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'total_income': total_income,
+                'total_costs': total_costs,
+                'net_position': net_position,
+                'profitable': net_position > 0,
+                'income_breakdown': income_sources,
+                'cost_breakdown': cost_categories,
+                'trend': trend,
+                'previous_period_comparison': net_position - previous_period_net,
+                'roi_percentage': roi_percentage
+            }
+
+            # Check for economic crisis
+            if net_position < -100 or (total_costs > 0 and net_position < -total_costs * 0.5):
+                if self.event_bus:
+                    try:
+                        from modules.bus import Event, EventType
+                        severity = 'critical' if net_position < -total_costs else 'high'
+                        self.event_bus.emit(Event(EventType.ECONOMIC_CRISIS, {
+                            'severity': severity,
+                            'net_loss': abs(net_position),
+                            'days_analyzed': days,
+                            'crisis_threshold_exceeded': True
+                        }))
+                    except:
+                        pass
+
+            # Store analysis in database for trend tracking
+            self._record_financial_analysis(result)
+
+            return result
+
+        except Exception as e:
+            self.scribe.log_system_event("FINANCIAL_ANALYSIS_ERROR", {'error': str(e)})
+            return {
+                'period_days': days,
+                'total_income': 0,
+                'total_costs': 0,
+                'net_position': 0,
+                'profitable': False,
+                'income_breakdown': {},
+                'cost_breakdown': {},
+                'trend': 'unknown',
+                'roi_percentage': 0,
+                'error': str(e)
+            }
+
+    def _get_income_breakdown(self, start_date: datetime, end_date: datetime) -> Dict[str, float]:
+        """Get income by source for period."""
+        try:
+            income = self.get_income_by_source(start_date.isoformat(), end_date.isoformat())
+            return income if income else {}
+        except Exception:
+            return {}
+
+    def _get_cost_breakdown(self, start_date: datetime, end_date: datetime) -> Dict[str, float]:
+        """Get costs by category for period."""
+        try:
+            conn = sqlite3.connect(self.scribe.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT category, COALESCE(SUM(ABS(amount)), 0) as total
+                FROM economic_log
+                WHERE timestamp >= ? AND timestamp <= ? AND amount < 0
+                GROUP BY category
+            ''', (start_date.isoformat(), end_date.isoformat()))
+
+            breakdown = {}
+            for row in cursor.fetchall():
+                breakdown[row[0]] = row[1]
+
+            conn.close()
+            return breakdown
+        except Exception:
+            return {}
+
+    def _get_previous_period_net(self, days: int) -> float:
+        """Get net position from previous equivalent period."""
+        try:
+            end_date = datetime.now() - timedelta(days=days)
+            start_date = end_date - timedelta(days=days)
+
+            income_sources = self._get_income_breakdown(start_date, end_date)
+            total_income = sum(income_sources.values())
+
+            cost_breakdown = self._get_cost_breakdown(start_date, end_date)
+            total_costs = sum(cost_breakdown.values())
+
+            return total_income - total_costs
+        except Exception:
+            return 0
+
+    def _record_financial_analysis(self, analysis: Dict) -> None:
+        """Store financial analysis for trend tracking."""
+        try:
+            conn = sqlite3.connect(self.scribe.db_path)
+            cursor = conn.cursor()
+
+            # Store in financial_snapshots or similar table if available
+            # For now, just log to audit
+            self.scribe.log_system_event("FINANCIAL_ANALYSIS", {
+                'period': analysis.get('period_days'),
+                'net_position': analysis.get('net_position'),
+                'profitable': analysis.get('profitable'),
+                'trend': analysis.get('trend')
+            })
+
+            conn.close()
+        except Exception:
+            pass
+
+    def get_profitability_status(self) -> Dict:
+        """
+        Get current profitability status for hierarchy progression checks.
+
+        Returns:
+            Dict with keys:
+            - is_profitable_30d: Profitable in last 30 days
+            - is_profitable_7d: Profitable in last 7 days
+            - consistent_profitability: Both 30d and 7d profitable
+            - trend: Current trend direction
+            - economic_health_score: 0-100 health score
+        """
+        try:
+            net_30 = self.calculate_net_position(30)
+            net_7 = self.calculate_net_position(7)
+
+            status = {
+                'is_profitable_30d': net_30['profitable'],
+                'is_profitable_7d': net_7['profitable'],
+                'consistent_profitability': net_30['profitable'] and net_7['profitable'],
+                'trend': net_30['trend'],
+                'economic_health_score': self._calculate_health_score(net_30, net_7)
+            }
+
+            return status
+
+        except Exception as e:
+            self.scribe.log_system_event("PROFITABILITY_STATUS_ERROR", {'error': str(e)})
+            return {
+                'is_profitable_30d': False,
+                'is_profitable_7d': False,
+                'consistent_profitability': False,
+                'trend': 'unknown',
+                'economic_health_score': 0
+            }
+
+    def _calculate_health_score(self, net_30: Dict, net_7: Dict) -> int:
+        """
+        Calculate economic health score 0-100.
+
+        Factors:
+        - Profitability in both periods: +40 points
+        - Positive trend: +30 points
+        - Good ROI: +30 points
+        """
+        score = 30  # Baseline
+
+        # Profitability bonus
+        if net_30['profitable']:
+            score += 20
+        if net_7['profitable']:
+            score += 20
+
+        # Trend bonus/penalty
+        if net_30['trend'] == 'improving':
+            score += 15
+        elif net_30['trend'] == 'declining':
+            score -= 15
+
+        # ROI bonus
+        roi = net_30.get('roi_percentage', 0)
+        if roi > 20:
+            score += 15
+        elif roi < -20:
+            score -= 15
+
+        return max(0, min(100, score))
+
+    def analyze_trends(self) -> Dict:
+        """
+        Analyze economic trends over time.
+
+        Returns:
+            Dict with trend analysis
+        """
+        try:
+            net_30 = self.calculate_net_position(30)
+            net_7 = self.calculate_net_position(7)
+            net_1 = self.calculate_net_position(1)
+
+            trend = net_30['trend']
+
+            if trend == 'declining':
+                analysis = "Revenue is declining compared to previous period"
+                recommendations = [
+                    "Increase income-generating activities",
+                    "Reduce operational costs",
+                    "Identify and implement high-ROI opportunities"
+                ]
+            elif trend == 'improving':
+                analysis = "Revenue is improving - good trajectory"
+                recommendations = [
+                    "Continue current high-performing activities",
+                    "Scale successful operations",
+                    "Reinvest profits into growth"
+                ]
+            else:
+                analysis = "Revenue is stable"
+                recommendations = [
+                    "Monitor for changes",
+                    "Explore new opportunities",
+                    "Maintain efficiency"
+                ]
+
+            return {
+                'trend': trend,
+                'analysis': analysis,
+                'recommendations': recommendations,
+                'current_status': net_30,
+                'short_term': net_7,
+                'very_short_term': net_1,
+                'potential': max(0, net_7['total_income'] * 4)  # Extrapolate 7d to 30d
+            }
+
+        except Exception as e:
+            self.scribe.log_system_event("TREND_ANALYSIS_ERROR", {'error': str(e)})
+            return {
+                'trend': 'unknown',
+                'analysis': 'Unable to analyze trends',
+                'recommendations': [],
+                'error': str(e)
+            }

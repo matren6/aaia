@@ -420,3 +420,469 @@ class MasterModelManager:
             )
         
         return summary
+
+    def enhanced_reflection_cycle(self) -> Dict[str, Any]:
+        """
+        Phase 3: Enhanced weekly reflection with advice effectiveness analysis.
+
+        Analyzes the effectiveness of our advice to the master, tracks outcomes,
+        and uses this data to improve the master psychological model.
+
+        Returns:
+            Dict with keys:
+            - period_start, period_end: Date range analyzed
+            - dialogues_analyzed: Count of dialogues with advice
+            - advice_effectiveness: Dict with metrics
+            - model_updates: Number of traits updated
+            - insights: List of key insights
+            - confidence_score: Overall model confidence (0-1)
+        """
+        end_time = datetime.now()
+        start_time = end_time - timedelta(days=7)
+
+        reflection_data = {
+            'period_start': start_time.isoformat(),
+            'period_end': end_time.isoformat(),
+            'dialogues_analyzed': 0,
+            'advice_effectiveness': {},
+            'model_updates': 0,
+            'insights': [],
+            'confidence_score': 0.0
+        }
+
+        try:
+            # Get dialogues with outcomes in the period
+            dialogues_with_outcomes = self._get_dialogues_with_outcomes(start_time, end_time)
+            reflection_data['dialogues_analyzed'] = len(dialogues_with_outcomes)
+
+            # Analyze advice effectiveness
+            effectiveness = self._analyze_advice_effectiveness(dialogues_with_outcomes)
+            reflection_data['advice_effectiveness'] = effectiveness
+
+            # Update psychological model based on effectiveness
+            model_updates = self._update_psychological_model(effectiveness)
+            reflection_data['model_updates'] = model_updates
+
+            # Generate insights from effectiveness analysis
+            insights = self._generate_model_insights(effectiveness)
+            reflection_data['insights'] = insights
+
+            # Calculate overall model confidence
+            confidence = self._calculate_model_confidence()
+            reflection_data['confidence_score'] = confidence
+
+            # Store reflection results
+            self._store_reflection_cycle(reflection_data)
+
+            # Log completion
+            self.scribe.log_system_event("ENHANCED_REFLECTION_COMPLETED", {
+                'dialogues': len(dialogues_with_outcomes),
+                'advice_effectiveness': effectiveness.get('effectiveness_rate', 0),
+                'model_confidence': confidence
+            })
+
+        except Exception as e:
+            reflection_data['insights'].append(f"Reflection error: {str(e)}")
+            self.scribe.log_system_event("ENHANCED_REFLECTION_ERROR", {'error': str(e)})
+
+        return reflection_data
+
+    def _get_dialogues_with_outcomes(self, start_time: datetime, end_time: datetime) -> List[Dict]:
+        """
+        Get interactions where advice was given and outcomes are available.
+
+        Args:
+            start_time: Beginning of period
+            end_time: End of period
+
+        Returns:
+            List of dialogue records with outcomes
+        """
+        try:
+            cursor = self.db.cursor()
+
+            cursor.execute('''
+                SELECT id, timestamp, interaction_type, user_input, system_response, 
+                       intent_detected, success, notes
+                FROM master_interactions
+                WHERE timestamp >= ? AND timestamp <= ?
+                ORDER BY timestamp DESC
+            ''', (start_time.isoformat(), end_time.isoformat()))
+
+            dialogues = []
+            for row in cursor.fetchall():
+                dialogue = {
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'type': row[2],
+                    'input': row[3],
+                    'response': row[4],
+                    'intent': row[5],
+                    'success': bool(row[6]),
+                    'notes': row[7]
+                }
+
+                # Check if this was advice-giving interaction
+                if self._is_advice_interaction(dialogue):
+                    dialogue['advice'] = self._extract_advice(dialogue['response'])
+
+                    # Get follow-up interactions
+                    follow_ups = self._get_follow_up_interactions(row[0], end_time)
+                    dialogue['follow_ups'] = follow_ups
+
+                    dialogues.append(dialogue)
+
+            return dialogues
+
+        except Exception as e:
+            self.scribe.log_system_event("DIALOGUE_RETRIEVAL_ERROR", {'error': str(e)})
+            return []
+
+    def _is_advice_interaction(self, dialogue: Dict) -> bool:
+        """
+        Determine if interaction included advice-giving.
+
+        Args:
+            dialogue: Interaction record
+
+        Returns:
+            True if advice was given
+        """
+        response = (dialogue.get('response') or '').lower()
+        advice_keywords = [
+            'suggest', 'recommend', 'should', 'could', 'consider',
+            'try', 'attempt', 'might', 'may help', 'would be',
+            'i think', 'in my view', 'my recommendation'
+        ]
+
+        return any(keyword in response for keyword in advice_keywords)
+
+    def _extract_advice(self, response: str) -> str:
+        """Extract the advice portion from a response."""
+        if not response:
+            return ""
+
+        # Simple extraction: take first 200 chars or up to first period
+        period_pos = response.find('.')
+        if period_pos > 0 and period_pos < 200:
+            return response[:period_pos + 1]
+        return response[:200]
+
+    def _get_follow_up_interactions(self, dialogue_id: int, end_time: datetime) -> List[Dict]:
+        """
+        Get interactions after a given dialogue (follow-ups).
+
+        Args:
+            dialogue_id: ID of original dialogue
+            end_time: End of analysis period
+
+        Returns:
+            List of follow-up interactions
+        """
+        try:
+            cursor = self.db.cursor()
+
+            # Get timestamp of original dialogue
+            cursor.execute('SELECT timestamp FROM master_interactions WHERE id = ?', (dialogue_id,))
+            original = cursor.fetchone()
+            if not original:
+                return []
+
+            original_time = original[0]
+
+            # Get interactions within next 24 hours
+            follow_up_limit = (datetime.fromisoformat(original_time) + timedelta(hours=24)).isoformat()
+
+            cursor.execute('''
+                SELECT id, timestamp, interaction_type, user_input, system_response, 
+                       intent_detected, success, notes
+                FROM master_interactions
+                WHERE timestamp > ? AND timestamp <= ? AND timestamp <= ?
+                ORDER BY timestamp ASC
+                LIMIT 3
+            ''', (original_time, follow_up_limit, end_time.isoformat()))
+
+            follow_ups = []
+            for row in cursor.fetchall():
+                follow_ups.append({
+                    'id': row[0],
+                    'timestamp': row[1],
+                    'type': row[2],
+                    'input': row[3],
+                    'response': row[4],
+                    'success': bool(row[6])
+                })
+
+            return follow_ups
+
+        except Exception:
+            return []
+
+    def _analyze_advice_effectiveness(self, dialogues: List[Dict]) -> Dict:
+        """
+        Analyze how effective our advice was.
+
+        Args:
+            dialogues: List of dialogues with advice
+
+        Returns:
+            Dict with effectiveness metrics
+        """
+        effectiveness_data = {
+            'total_advice_given': 0,
+            'advice_followed': 0,
+            'positive_outcomes': 0,
+            'negative_outcomes': 0,
+            'neutral_outcomes': 0,
+            'effectiveness_rate': 0.0,
+            'success_rate': 0.0,
+            'improvement_areas': []
+        }
+
+        for dialogue in dialogues:
+            if not dialogue.get('advice'):
+                continue
+
+            effectiveness_data['total_advice_given'] += 1
+
+            # Check if follow-ups exist
+            follow_ups = dialogue.get('follow_ups', [])
+            if not follow_ups:
+                continue
+
+            # Was advice followed (indicated by follow-up success)?
+            was_followed = any(fu['success'] for fu in follow_ups)
+            if was_followed:
+                effectiveness_data['advice_followed'] += 1
+
+                # Analyze outcome
+                outcome = self._analyze_outcome(dialogue, follow_ups)
+
+                if outcome == 'positive':
+                    effectiveness_data['positive_outcomes'] += 1
+                elif outcome == 'negative':
+                    effectiveness_data['negative_outcomes'] += 1
+                    effectiveness_data['improvement_areas'].append({
+                        'advice': dialogue['advice'][:100],
+                        'issue': 'Advice did not lead to positive outcome',
+                        'follow_ups': len(follow_ups)
+                    })
+                else:
+                    effectiveness_data['neutral_outcomes'] += 1
+
+        # Calculate rates
+        if effectiveness_data['total_advice_given'] > 0:
+            effectiveness_data['effectiveness_rate'] = (
+                effectiveness_data['advice_followed'] / 
+                effectiveness_data['total_advice_given']
+            )
+
+        if effectiveness_data['advice_followed'] > 0:
+            positive = effectiveness_data['positive_outcomes']
+            success_count = positive + (effectiveness_data['neutral_outcomes'] / 2)
+            effectiveness_data['success_rate'] = success_count / effectiveness_data['advice_followed']
+
+        return effectiveness_data
+
+    def _analyze_outcome(self, dialogue: Dict, follow_ups: List[Dict]) -> str:
+        """
+        Analyze if advice led to positive, negative, or neutral outcome.
+
+        Args:
+            dialogue: Original advice dialogue
+            follow_ups: Follow-up interactions
+
+        Returns:
+            'positive', 'negative', or 'neutral'
+        """
+        if not follow_ups:
+            return 'neutral'
+
+        # Success rate among follow-ups
+        successful = sum(1 for fu in follow_ups if fu['success'])
+        success_rate = successful / len(follow_ups)
+
+        # If master took action and it succeeded, positive
+        if success_rate > 0.6:
+            return 'positive'
+        # If master took action but it failed, negative
+        elif success_rate < 0.3:
+            return 'negative'
+        # Otherwise neutral
+        else:
+            return 'neutral'
+
+    def _update_psychological_model(self, effectiveness: Dict) -> int:
+        """
+        Update master psychological model based on advice effectiveness.
+
+        Args:
+            effectiveness: Dict with effectiveness metrics
+
+        Returns:
+            Number of traits updated
+        """
+        updates = 0
+
+        try:
+            # Update decision-making patterns
+            if effectiveness['effectiveness_rate'] > 0.7:
+                self.update_master_trait(
+                    'traits',
+                    'decision_confidence',
+                    'high',
+                    f"Master follows AI advice at {effectiveness['effectiveness_rate']:.0%} rate",
+                    effectiveness['effectiveness_rate']
+                )
+                updates += 1
+
+            # Track advice receptiveness
+            receptiveness = effectiveness['advice_followed'] / max(effectiveness['total_advice_given'], 1)
+            if receptiveness > 0:
+                self.update_master_trait(
+                    'traits',
+                    'advice_receptiveness',
+                    'good' if receptiveness > 0.5 else 'moderate',
+                    f"Master follows {receptiveness:.0%} of given advice",
+                    receptiveness
+                )
+                updates += 1
+
+            # Success pattern
+            if effectiveness['success_rate'] > 0.6:
+                self.update_master_trait(
+                    'communication_style',
+                    'advice_effectiveness',
+                    'high',
+                    f"Advice leads to positive outcomes {effectiveness['success_rate']:.0%} of the time",
+                    effectiveness['success_rate']
+                )
+                updates += 1
+
+        except Exception as e:
+            self.scribe.log_system_event("MODEL_UPDATE_ERROR", {'error': str(e)})
+
+        return updates
+
+    def _generate_model_insights(self, effectiveness: Dict) -> List[str]:
+        """
+        Generate insights from advice effectiveness analysis.
+
+        Args:
+            effectiveness: Dict with effectiveness metrics
+
+        Returns:
+            List of insight strings
+        """
+        insights = []
+
+        try:
+            # Effectiveness insights
+            if effectiveness['total_advice_given'] == 0:
+                insights.append("No advice given in this period.")
+            else:
+                insights.append(
+                    f"Gave {effectiveness['total_advice_given']} pieces of advice, "
+                    f"{effectiveness['advice_followed']} followed "
+                    f"({effectiveness['effectiveness_rate']:.0%} rate)"
+                )
+
+            # Success rate insights
+            if effectiveness['advice_followed'] > 0:
+                insights.append(
+                    f"Advice success rate: {effectiveness['success_rate']:.0%} "
+                    f"({effectiveness['positive_outcomes']} positive, "
+                    f"{effectiveness['negative_outcomes']} negative outcomes)"
+                )
+
+            # Improvement areas
+            if effectiveness['improvement_areas']:
+                insights.append(
+                    f"Found {len(effectiveness['improvement_areas'])} areas for improvement"
+                )
+                for area in effectiveness['improvement_areas'][:2]:
+                    insights.append(f"  - {area['issue']}")
+
+        except Exception:
+            insights.append("Could not generate detailed insights")
+
+        return insights
+
+    def _calculate_model_confidence(self) -> float:
+        """
+        Calculate overall confidence in master psychological model.
+
+        Returns:
+            Confidence score 0.0-1.0
+        """
+        try:
+            profile = self.get_master_profile()
+
+            # Flatten all traits
+            all_traits = []
+            for category_traits in profile.values():
+                all_traits.extend(category_traits)
+
+            if not all_traits:
+                return 0.0
+
+            # Average confidence of all traits
+            avg_confidence = sum(t['confidence'] for t in all_traits) / len(all_traits)
+
+            # Boost for recent interactions
+            recent = self.get_recent_interactions(days=7)
+            recency_boost = min(0.1, len(recent) / 100)
+
+            final_confidence = min(1.0, avg_confidence + recency_boost)
+
+            return final_confidence
+
+        except Exception:
+            return 0.0
+
+    def _store_reflection_cycle(self, reflection_data: Dict) -> None:
+        """
+        Store reflection cycle results for historical tracking.
+
+        Args:
+            reflection_data: Reflection results dict
+        """
+        try:
+            cursor = self.db.cursor()
+
+            # Check if reflection_cycles table exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS reflection_cycles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    period_start TEXT NOT NULL,
+                    period_end TEXT NOT NULL,
+                    dialogues_analyzed INTEGER,
+                    advice_effectiveness REAL,
+                    model_updates INTEGER,
+                    confidence_score REAL,
+                    insights TEXT
+                )
+            ''')
+
+            # Insert reflection record
+            cursor.execute('''
+                INSERT INTO reflection_cycles
+                (timestamp, period_start, period_end, dialogues_analyzed, 
+                 advice_effectiveness, model_updates, confidence_score, insights)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                datetime.now().isoformat(),
+                reflection_data['period_start'],
+                reflection_data['period_end'],
+                reflection_data['dialogues_analyzed'],
+                reflection_data['advice_effectiveness'].get('effectiveness_rate', 0),
+                reflection_data['model_updates'],
+                reflection_data['confidence_score'],
+                json.dumps(reflection_data['insights'][:5])  # Store top 5 insights
+            ))
+
+            self.db.commit()
+
+        except Exception as e:
+            self.scribe.log_system_event("REFLECTION_STORAGE_ERROR", {'error': str(e)})

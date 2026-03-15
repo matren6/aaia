@@ -266,3 +266,207 @@ class DialogueManager:
                 return True
 
         return False
+
+    def classify_command_significance(self, command: str, context: Dict = None) -> Dict:
+        """
+        Use AI to properly classify command significance.
+
+        Replaces simple keyword matching with intelligent classification
+        using the LLM to determine if a command requires dialogue.
+
+        Args:
+            command: The command to classify
+            context: Optional context about the command
+
+        Returns:
+            Dict with keys: significance, reasoning, should_dialogue, risk_factors, 
+                           complexity_score, reversibility
+        """
+        try:
+            if not self.prompt_manager or not self.router:
+                # Fallback to simple significance check
+                return self._simple_significance_classification(command)
+
+            prompt_data = self.prompt_manager.get_prompt(
+                'dialogue',
+                'classify_significance',
+                variables={
+                    'command': command,
+                    'context': json.dumps(context or {})
+                }
+            )
+
+            analysis = self.router.call_model(
+                prompt_data.get('model', 'llama3.2:3b'),
+                prompt_data['prompt']
+            )
+
+            result = json.loads(analysis)
+
+            # Log classification for improvement
+            self.scribe.log_system_event("COMMAND_CLASSIFIED", {
+                'command': command[:100],
+                'significance': result.get('significance'),
+                'should_dialogue': result.get('should_dialogue')
+            })
+
+            return result
+
+        except json.JSONDecodeError as e:
+            self.scribe.log_system_event("CLASSIFICATION_JSON_ERROR", {
+                'command': command[:100],
+                'error': str(e)
+            })
+            # Fallback on JSON parse error
+            return self._simple_significance_classification(command)
+
+        except Exception as e:
+            self.scribe.log_system_event("CLASSIFICATION_ERROR", {
+                'command': command[:100],
+                'error': str(e)
+            })
+            # Fallback to conservative classification
+            return {
+                'significance': 'significant',
+                'reasoning': f'Classification failed, defaulting to conservative: {str(e)[:50]}',
+                'should_dialogue': True,
+                'risk_factors': ['Classification system unavailable'],
+                'complexity_score': 7,
+                'reversibility': 'somewhat_reversible'
+            }
+
+    def _simple_significance_classification(self, command: str) -> Dict:
+        """
+        Simple fallback significance classification using keywords.
+
+        Used when AI classification is unavailable.
+        """
+        lower_cmd = command.lower()
+
+        # Trivial commands
+        trivial_keywords = ['status', 'help', 'list', 'show', 'tell', 'get', 'query']
+        if any(kw in lower_cmd for kw in trivial_keywords):
+            return {
+                'significance': 'trivial',
+                'reasoning': 'Simple query or information request',
+                'should_dialogue': False,
+                'risk_factors': [],
+                'complexity_score': 1,
+                'reversibility': 'easily_reversible'
+            }
+
+        # Critical commands
+        critical_keywords = ['delete', 'remove', 'destroy', 'format', 'purge', 'drop database']
+        if any(kw in lower_cmd for kw in critical_keywords):
+            return {
+                'significance': 'critical',
+                'reasoning': 'Destructive or irreversible operation detected',
+                'should_dialogue': True,
+                'risk_factors': ['Potentially irreversible', 'Data loss risk', 'System impact'],
+                'complexity_score': 8,
+                'reversibility': 'irreversible'
+            }
+
+        # Significant commands
+        significant_keywords = ['create', 'modify', 'update', 'install', 'deploy', 'send', 'post']
+        if any(kw in lower_cmd for kw in significant_keywords):
+            return {
+                'significance': 'significant',
+                'reasoning': 'Operation that creates or modifies system state',
+                'should_dialogue': True,
+                'risk_factors': ['State change', 'Potential side effects'],
+                'complexity_score': 6,
+                'reversibility': 'somewhat_reversible'
+            }
+
+        # Default moderate
+        return {
+            'significance': 'moderate',
+            'reasoning': 'Standard operation with typical complexity',
+            'should_dialogue': False,
+            'risk_factors': [],
+            'complexity_score': 4,
+            'reversibility': 'easily_reversible'
+        }
+
+    def structure_proactive_analysis(self, findings: List[Dict]) -> Dict:
+        """
+        Structure proactive analysis findings as a master notification.
+
+        Converts raw findings into a well-formatted structured argument
+        suitable for presentation to the master.
+
+        Args:
+            findings: List of finding dicts (opportunities and risks)
+
+        Returns:
+            Structured notification dict with formatted analysis
+        """
+        if not findings:
+            return {'type': 'proactive_analysis', 'findings': []}
+
+        try:
+            # Organize by type and priority
+            opportunities = [f for f in findings if f.get('type') == 'opportunity']
+            risks = [f for f in findings if f.get('type') == 'risk']
+
+            # Determine overall priority
+            has_critical = any(f.get('priority') == 'critical' for f in findings)
+            has_high = any(f.get('priority') == 'high' for f in findings)
+            overall_priority = 'critical' if has_critical else 'high' if has_high else 'medium'
+
+            structured = {
+                'type': 'proactive_analysis',
+                'priority': overall_priority,
+                'timestamp': datetime.now().isoformat(),
+                'summary': f"Proactive analysis identified {len(opportunities)} opportunities and {len(risks)} risks",
+                'opportunities': self._format_findings(opportunities),
+                'risks': self._format_findings(risks),
+                'recommendations': self._generate_recommendations(findings)
+            }
+
+            return structured
+
+        except Exception as e:
+            self.scribe.log_system_event("PROACTIVE_ANALYSIS_FORMATTING_ERROR", {
+                'error': str(e)
+            })
+            # Return simple fallback structure
+            return {
+                'type': 'proactive_analysis',
+                'findings': findings,
+                'error': str(e)
+            }
+
+    def _format_findings(self, findings: List[Dict]) -> List[Dict]:
+        """Format findings for display."""
+        formatted = []
+        for finding in findings:
+            formatted.append({
+                'title': finding.get('title', 'Unknown'),
+                'description': finding.get('description', ''),
+                'priority': finding.get('priority', 'medium'),
+                'category': finding.get('category', 'general'),
+                'action': finding.get('action_required') or finding.get('mitigation_steps') or finding.get('suggested_implementation', [])
+            })
+        return formatted
+
+    def _generate_recommendations(self, findings: List[Dict]) -> List[str]:
+        """Generate action recommendations from findings."""
+        recommendations = []
+
+        # Group by category
+        by_category = {}
+        for finding in findings:
+            cat = finding.get('category', 'general')
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(finding)
+
+        # Generate recommendations
+        for category, items in by_category.items():
+            high_priority = [i for i in items if i.get('priority') in ['high', 'critical']]
+            if high_priority:
+                recommendations.append(f"Address high-priority {category} issues: {len(high_priority)} items")
+
+        return recommendations

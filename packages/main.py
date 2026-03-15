@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import time
 import sqlite3
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 import argparse
 import threading
 import os
@@ -285,15 +285,21 @@ class Arbiter:
                 "proceeding"
             )
 
+        # AI-powered command significance classification (Phase 1 fix)
+        classification = self.dialogue.classify_command_significance(command)
+        should_use_dialogue = classification.get('should_dialogue', False)
+
         # Mandate check (Phase 3.3)
         is_allowed, violations, status = self.mandates.check_action(command)
 
         if status == 'catastrophic':
-            response = "🔒 CATASTROPHIC RISK DETECTED - Action blocked. See docs/CATASTROPHIC_RISKS.md"
+            # Phase 1 fix: Enter safety lockout for catastrophic risks
+            self.mandates._enter_safety_lockout(command, violations)
+            response = "🔒 CATASTROPHIC RISK DETECTED - Safety lockout engaged. Master acknowledgment required."
             self.scribe.log_action(
                 "Catastrophic risk blocked",
                 f"Command: {command}",
-                "blocked"
+                "catastrophic_lockout"
             )
             return response
 
@@ -305,7 +311,8 @@ class Arbiter:
                     return "Command cancelled (override not confirmed)"
 
         # For non-urgent significant commands, run analysis (Phase 3.2)
-        if not skip_dialogue and self.dialogue.requires_dialogue(command, urgency_level):
+        # Use AI classification instead of simple keyword matching
+        if not skip_dialogue and (should_use_dialogue or self.dialogue.requires_dialogue(command, urgency_level)):
             understanding, risks, alternatives = self.dialogue.structured_argument(command)
 
             response = f"""
@@ -375,7 +382,86 @@ class Arbiter:
                 reasoning=str(e),
                 outcome="Failed"
             )
-        
+
+    def _log_interaction_start(self, command: str, context: Dict = None) -> str:
+        """
+        Log the start of any interaction with master.
+
+        Creates an interaction record for tracking all master-system interactions,
+        used for master model development and system auditing.
+
+        Args:
+            command: The command being executed
+            context: Optional context about the interaction
+
+        Returns:
+            Unique interaction ID for tracking
+        """
+        interaction_id = f"int_{int(time.time() * 1000)}"
+        try:
+            self.scribe.log_interaction("INTERACTION_START", {
+                'interaction_id': interaction_id,
+                'command': command[:200],  # Truncate for privacy
+                'timestamp': datetime.now().isoformat(),
+                'context': context or {}
+            })
+        except Exception as e:
+            print(f"[WARNING] Failed to log interaction start: {e}")
+
+        return interaction_id
+
+    def _log_interaction_end(self, interaction_id: str, command: str, 
+                            result: Any, success: bool = True, error: str = None) -> None:
+        """
+        Log the completion of any interaction with master.
+
+        Records the outcome and result of an interaction for analysis and learning.
+
+        Args:
+            interaction_id: ID from _log_interaction_start
+            command: The original command
+            result: The result/response from execution
+            success: Whether the command succeeded
+            error: Optional error message if failed
+        """
+        try:
+            self.scribe.log_interaction("INTERACTION_END", {
+                'interaction_id': interaction_id,
+                'command': command[:200],
+                'result_length': len(str(result)) if result else 0,
+                'success': success,
+                'has_error': error is not None,
+                'error_preview': error[:100] if error else None,
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            print(f"[WARNING] Failed to log interaction end: {e}")
+
+    def _execute_with_logging(self, command: str, executor_func) -> Any:
+        """
+        Wrapper to ensure all command execution is logged.
+
+        This is the centralized point for logging all interactions with the master.
+
+        Args:
+            command: The command being executed
+            executor_func: Callable that executes the command
+
+        Returns:
+            Result from executor_func
+
+        Raises:
+            Re-raises any exception from executor_func
+        """
+        interaction_id = self._log_interaction_start(command)
+        try:
+            result = executor_func()
+            self._log_interaction_end(interaction_id, command, result, success=True)
+            return result
+        except Exception as e:
+            self._log_interaction_end(interaction_id, command, None, success=False, error=str(e))
+            raise
+
     def execute_command(self, command: str) -> str:
         """Execute a command"""
         # This is where the AI would implement command execution

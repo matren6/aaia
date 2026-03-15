@@ -41,7 +41,7 @@ OUTPUTS: Boolean approval + list of violations
 from typing import List, Tuple, Dict, Any, Optional
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from .scribe import Scribe
 
 class MandateEnforcer:
@@ -337,4 +337,166 @@ class MandateEnforcer:
                 return False
         except (KeyboardInterrupt, EOFError):
             print("\n❌ Override cancelled. Action not executed.\n")
+            return False
+
+    def _enter_safety_lockout(self, action: str, violations: List[str]) -> None:
+        """
+        Enter safety lock-out requiring explicit acknowledgment.
+
+        This is called when a catastrophic risk is detected. The system enters
+        a locked state that requires explicit master acknowledgment before any
+        further action can be taken.
+
+        Args:
+            action: The action that triggered the lockout
+            violations: List of violations that caused the lockout
+        """
+        try:
+            if self.database_manager:
+                conn = self.database_manager.get_connection()
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    INSERT INTO safety_lockouts 
+                    (timestamp, action, violations, acknowledged)
+                    VALUES (?, ?, ?, 0)
+                ''', (
+                    datetime.now().isoformat(),
+                    action[:500],
+                    json.dumps(violations) if isinstance(violations, list) else violations
+                ))
+
+                conn.commit()
+
+            self.scribe.log_system_event("SAFETY_LOCKOUT_INITIATED", {
+                'action': action[:100],
+                'violation_count': len(violations) if isinstance(violations, list) else 1
+            })
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Safety lockout storage failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+
+    def _catastrophic_risk_acknowledged(self, action: str) -> bool:
+        """
+        Check if catastrophic risk has been explicitly acknowledged recently.
+
+        Args:
+            action: The action to check acknowledgment for
+
+        Returns:
+            True if recently acknowledged, False otherwise
+        """
+        try:
+            if not self.database_manager:
+                return False
+
+            conn = self.database_manager.get_connection()
+            cursor = conn.cursor()
+
+            # Check for acknowledged lockout within last 24 hours
+            cursor.execute('''
+                SELECT id FROM safety_lockouts 
+                WHERE action = ? AND acknowledged = 1 AND 
+                      timestamp > datetime('now', '-24 hours')
+                LIMIT 1
+            ''', (action[:500],))
+
+            result = cursor.fetchone()
+            return result is not None
+
+        except Exception:
+            return False
+
+    def get_active_lockouts(self) -> List[Dict]:
+        """
+        Get all active (unacknowledged) safety lockouts.
+
+        Returns:
+            List of active lockout records
+        """
+        try:
+            if not self.database_manager:
+                return []
+
+            conn = self.database_manager.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                SELECT id, timestamp, action, violations 
+                FROM safety_lockouts 
+                WHERE acknowledged = 0
+                ORDER BY timestamp DESC
+            ''')
+
+            rows = cursor.fetchall()
+            lockouts = []
+
+            for row in rows:
+                try:
+                    lockouts.append({
+                        'id': row[0],
+                        'timestamp': row[1],
+                        'action': row[2],
+                        'violations': json.loads(row[3]) if isinstance(row[3], str) else row[3]
+                    })
+                except Exception:
+                    pass
+
+            return lockouts
+
+        except Exception:
+            return []
+
+    def acknowledge_lockout(self, lockout_id: int, master_response: str) -> bool:
+        """
+        Master acknowledges and resolves a safety lockout.
+
+        This records the master's explicit acknowledgment of a catastrophic risk,
+        allowing the system to proceed if the master reaffirms their intent.
+
+        Args:
+            lockout_id: ID of the lockout to acknowledge
+            master_response: Master's response/confirmation text
+
+        Returns:
+            True if acknowledged successfully, False otherwise
+        """
+        try:
+            if not self.database_manager:
+                return False
+
+            conn = self.database_manager.get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                UPDATE safety_lockouts 
+                SET acknowledged = 1, 
+                    acknowledge_timestamp = ?, 
+                    master_response = ?
+                WHERE id = ?
+            ''', (
+                datetime.now().isoformat(),
+                master_response[:500],
+                lockout_id
+            ))
+
+            conn.commit()
+
+            self.scribe.log_interaction("SAFETY_LOCKOUT_ACKNOWLEDGED", {
+                'lockout_id': lockout_id,
+                'response_preview': master_response[:100] if master_response else ''
+            })
+
+            return True
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Lockout acknowledgment failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
             return False

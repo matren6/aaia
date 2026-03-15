@@ -292,6 +292,23 @@ class AutonomousScheduler:
             priority=1  # High priority - crisis response is critical
         )
 
+        # Phase 2: Proactive Analysis (NEW)
+        self.register_task(
+            name="proactive_opportunity_detection",
+            function=self.run_proactive_analysis,
+            interval_minutes=max(60, int(6 * 60)),  # Every 6 hours with minimum 1 hour
+            priority=60
+        )
+
+        # Phase 3: Enhanced Master Model Reflection (NEW)
+        # Enhanced reflection with advice effectiveness tracking - weekly
+        self.register_task(
+            name="enhanced_master_model_reflection",
+            function=self.run_enhanced_master_model_reflection,
+            interval_minutes=max(60, 10080),  # Weekly (10080 = 7 days) with minimum 1 hour for testing
+            priority=50  # High priority - learning from master interactions
+        )
+
     def register_task(self, name: str, function: Callable, 
                       interval_minutes: int = None, 
                       interval_hours: int = None,
@@ -922,6 +939,55 @@ Response format:
             )
             return f"Master model reflection failed: {str(e)}"
 
+    def run_enhanced_master_model_reflection(self):
+        """
+        Phase 3: Enhanced weekly reflection with advice effectiveness analysis.
+
+        Analyzes the effectiveness of our advice to the master and uses this
+        data to continuously improve the psychological model.
+        """
+        try:
+            master_model = self._get_master_model_manager()
+            reflection_results = master_model.enhanced_reflection_cycle()
+
+            # Extract key metrics
+            dialogues_analyzed = reflection_results.get('dialogues_analyzed', 0)
+            effectiveness = reflection_results.get('advice_effectiveness', {})
+            effectiveness_rate = effectiveness.get('effectiveness_rate', 0)
+            model_updates = reflection_results.get('model_updates', 0)
+            confidence_score = reflection_results.get('confidence_score', 0)
+
+            # Log completion
+            self.scribe.log_action(
+                "Enhanced master model reflection completed (Phase 3)",
+                reasoning=f"Analyzed {dialogues_analyzed} dialogues for advice effectiveness",
+                outcome=f"Effectiveness rate: {effectiveness_rate:.0%}, "
+                        f"{model_updates} traits updated, "
+                        f"Model confidence: {confidence_score:.0%}"
+            )
+
+            # If significant insights, prepare notification
+            insights = reflection_results.get('insights', [])
+            if insights and len(insights) > 0:
+                self.scribe.log_system_event("REFLECTION_INSIGHTS_GENERATED", {
+                    'insight_count': len(insights),
+                    'effectiveness_rate': effectiveness_rate,
+                    'confidence_score': confidence_score
+                })
+
+            return f"Enhanced reflection: {dialogues_analyzed} dialogues, " \
+                   f"{effectiveness_rate:.0%} advice effectiveness, " \
+                   f"{confidence_score:.0%} model confidence"
+
+        except Exception as e:
+            self.scribe.log_action(
+                "Enhanced master model reflection failed",
+                reasoning=str(e),
+                outcome="Error"
+            )
+            return f"Enhanced reflection failed: {str(e)}"
+            return f"Master model reflection failed: {str(e)}"
+
     def identify_income_opportunities(self):
         """Identify income generation opportunities"""
         try:
@@ -979,3 +1045,51 @@ Response format:
                 outcome="Error"
             )
             return f"Profitability report failed: {str(e)}"
+
+    def run_proactive_analysis(self):
+        """
+        Detect opportunities and risks proactively (Phase 2).
+
+        Runs the ProactiveAnalyzer to identify opportunities and risks,
+        preparing structured notifications for the master.
+        """
+        try:
+            # Get or resolve ProactiveAnalyzer from container
+            try:
+                analyzer = self._container.get('ProactiveAnalyzer')
+            except Exception:
+                self.scribe.log_system_event("PROACTIVE_ANALYSIS_SKIP", {
+                    'reason': 'ProactiveAnalyzer not available'
+                })
+                return "Proactive analysis skipped: analyzer not available"
+
+            # Detect opportunities and risks
+            findings = analyzer.detect_opportunities_and_risks()
+
+            # Prepare master notification if high-priority findings
+            if findings.get('total_findings', 0) > 0:
+                notification = analyzer.prepare_master_notification(findings)
+
+                if notification:
+                    self.scribe.log_system_event("PROACTIVE_NOTIFICATION_PREPARED", {
+                        'findings_count': findings.get('total_findings', 0),
+                        'opportunities': len(findings.get('opportunities', [])),
+                        'risks': len(findings.get('risks', [])),
+                        'has_high_priority': findings.get('highest_priority', {}).get('priority') in ['high', 'critical']
+                    })
+
+                    return f"Proactive analysis: {findings['total_findings']} findings ({len(findings.get('opportunities', []))} opportunities, {len(findings.get('risks', []))} risks)"
+
+            self.scribe.log_action(
+                "Proactive analysis completed",
+                reasoning="Scanning for opportunities and risks",
+                outcome=f"Found {findings.get('total_findings', 0)} items"
+            )
+
+            return f"Proactive analysis complete: {findings.get('total_findings', 0)} findings"
+
+        except Exception as e:
+            self.scribe.log_system_event("PROACTIVE_ANALYSIS_ERROR", {
+                'error': str(e)
+            })
+            return f"Proactive analysis failed: {str(e)}"

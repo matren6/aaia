@@ -341,3 +341,64 @@ class HierarchyManager:
             }
         }
         return requirements.get(tier, {})
+
+    def check_tier1_economic_requirements(self) -> Dict:
+        """
+        Check if Tier 1 economic requirements are met.
+
+        Tier 1 requires:
+        - Profitable 30 days OR profitable 7 days with improving trend
+        - Health score >= 70
+
+        Returns:
+            Dict with requirement status and current values
+        """
+        try:
+            if not self.economics:
+                return {
+                    'can_progress': False,
+                    'requirements': {},
+                    'current_status': {},
+                    'error': 'Economics module not available'
+                }
+
+            profitability = self.economics.get_profitability_status()
+
+            requirements_met = {
+                'profitable_30d': profitability['is_profitable_30d'],
+                'profitable_7d': profitability['is_profitable_7d'],
+                'positive_trend': profitability['trend'] in ['improving', 'stable'],
+                'health_score_adequate': profitability['economic_health_score'] >= 70,
+                'trend_improving': profitability['trend'] == 'improving'
+            }
+
+            # Can progress if: 30d profitable OR (7d profitable AND improving)
+            can_progress = (
+                requirements_met['profitable_30d'] and 
+                requirements_met['health_score_adequate']
+            ) or (
+                requirements_met['profitable_7d'] and 
+                requirements_met['trend_improving'] and
+                requirements_met['health_score_adequate']
+            )
+
+            if not can_progress:
+                self.scribe.log_system_event("TIER1_ECONOMIC_BLOCK", {
+                    'requirements_status': requirements_met,
+                    'current_status': profitability
+                })
+
+            return {
+                'can_progress': can_progress,
+                'requirements': requirements_met,
+                'current_status': profitability
+            }
+
+        except Exception as e:
+            self.scribe.log_system_event("ECONOMIC_CHECK_ERROR", {'error': str(e)})
+            return {
+                'can_progress': False,
+                'requirements': {},
+                'current_status': {},
+                'error': str(e)
+            }
