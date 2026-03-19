@@ -2,7 +2,22 @@
 
 An autonomous AI agent system designed for self-improvement and task execution.
 
-## Quick Start (NixOS)
+## Quick Start
+
+### NixOS Installation (Recommended)
+
+For automated NixOS installation from ISO, see **[install/nixos/README.md](install/nixos/README.md)**
+
+```bash
+# On NixOS ISO:
+git clone https://github.com/matren6/aaia.git /tmp/aaia
+cd /tmp/aaia/install/nixos
+bash install-nixos.sh
+```
+
+### Manual Setup
+
+For manual installation or other Linux distributions:
 
 ```bash
 git clone https://github.com/matren6/aaia.git
