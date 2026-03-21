@@ -9,6 +9,7 @@ For detailed instructions on specific topics, Copilot can reference:
 - **Testing**: `.github/copilot-instructions-testing.md` - WSL, CLI, batch mode testing
 - **Build & Scripts**: `.github/copilot-instructions-build.md` - Python compilation, bash script standards
 - **Patterns**: `.github/copilot-instructions-patterns.md` - Code templates, common patterns
+- **WIP Workflow**: `.github/copilot-instructions-wip-workflow.md` - WIP.md → decisions → roadmap batches
 
 ## Essential Constraints (Always Apply)
 
@@ -32,4 +33,5 @@ For detailed instructions on specific topics, Copilot can reference:
 - **Running tests?** → See `copilot-instructions-testing.md`
 - **Creating bash script?** → See `copilot-instructions-build.md`
 - **Need code template?** → See `copilot-instructions-patterns.md`
+- **Processing WIP.md items into a roadmap?** → See `copilot-instructions-wip-workflow.md`
 
